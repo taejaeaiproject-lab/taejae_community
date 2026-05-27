@@ -4,23 +4,11 @@ import { getToken } from "next-auth/jwt";
 export default async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  const publicPaths = ["/", "/login", "/register", "/pending", "/api/register"];
-  const isPublic =
-    publicPaths.some((p) => pathname === p || pathname.startsWith(p + "/")) ||
-    pathname.startsWith("/api/auth");
-
-  const token = await getToken({
-    req,
-    secret: process.env.NEXTAUTH_SECRET,
-  });
-
-  if (!token && !isPublic) {
-    const loginUrl = new URL("/login", req.url);
-    return NextResponse.redirect(loginUrl);
-  }
-
-  if (pathname.startsWith("/admin") && token?.role !== "ADMIN") {
-    return NextResponse.redirect(new URL("/dashboard", req.url));
+  if (pathname.startsWith("/admin") || pathname.startsWith("/api/admin")) {
+    const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
+    if (!token || token.role !== "ADMIN") {
+      return NextResponse.redirect(new URL("/login", req.url));
+    }
   }
 
   return NextResponse.next();

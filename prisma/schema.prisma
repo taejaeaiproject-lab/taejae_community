@@ -120,3 +120,59 @@ model Event {
 
   @@map("events")
 }
+
+model Project {
+  id          String           @id @default(cuid())
+  title       String
+  description String
+  tags        String?
+  status      String           @default("ONGOING")
+  teamMembers String?
+  demoUrl     String?
+  githubUrl   String?
+  order       Int              @default(0)
+  comments    ProjectComment[]
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@map("projects")
+}
+
+model ProjectComment {
+  id          String   @id @default(cuid())
+  content     String
+  authorName  String
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+
+  @@map("project_comments")
+}
+
+model LearningContent {
+  id          String   @id @default(cuid())
+  title       String
+  description String
+  category    String   @default("COURSE")
+  instructor  String?
+  tags        String?
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("learning_contents")
+}
+
+model ActivityContent {
+  id          String   @id @default(cuid())
+  title       String
+  description String
+  type        String   @default("SESSION")
+  date        String?
+  tags        String?
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("activity_contents")
+}
