@@ -6,7 +6,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const session = await auth();
   if (!session || session.user.role !== "ADMIN") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const { id } = await params;
-  const data = await req.json();
+  const raw = await req.json();
+  const data = {
+    title: raw.title,
+    description: raw.description,
+    category: raw.category,
+    instructor: raw.instructor || null,
+    tags: raw.tags || null,
+  };
   const item = await prisma.learningContent.update({ where: { id }, data });
   return NextResponse.json(item);
 }

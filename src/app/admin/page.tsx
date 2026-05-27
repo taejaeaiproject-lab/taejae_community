@@ -108,20 +108,20 @@ function ItemRow({ badge, title, sub, onEdit, onDelete }: {
   onEdit: () => void; onDelete: () => void;
 }) {
   return (
-    <div className="group flex items-center gap-3 px-5 py-4 border-b border-white/[0.05] hover:bg-white/[0.02] transition-colors last:border-0">
+    <div className="flex items-center gap-3 px-5 py-4 border-b border-white/[0.05] hover:bg-white/[0.02] transition-colors last:border-0">
       <div className="shrink-0">{badge}</div>
       <div className="flex-1 min-w-0">
         <p className="text-sm font-semibold text-white truncate">{title}</p>
         {sub && <p className="text-xs truncate mt-0.5" style={{ color: "rgba(255,255,255,0.35)" }}>{sub}</p>}
       </div>
-      <div className="flex gap-1.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+      <div className="flex gap-1.5 shrink-0">
         <button onClick={onEdit}
-          className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors"
+          className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors hover:brightness-125"
           style={{ background: "rgba(201,162,39,0.15)", color: "#c9a227" }}>
           <Pencil size={11} />수정
         </button>
         <button onClick={onDelete}
-          className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors"
+          className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors hover:brightness-125"
           style={{ background: "rgba(239,68,68,0.12)", color: "#f87171" }}>
           <Trash2 size={11} />삭제
         </button>
