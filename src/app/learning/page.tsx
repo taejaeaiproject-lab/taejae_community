@@ -9,10 +9,10 @@ type LearningContent = {
   category: string; instructor: string | null; tags: string | null;
 };
 
-const CATEGORY = {
-  COURSE:    { label: "Course", color: "bg-blue-100 text-blue-700" },
-  WORKSHOP:  { label: "Workshop", color: "bg-purple-100 text-purple-700" },
-  SEMINAR:   { label: "Seminar", color: "bg-amber-100 text-amber-700" },
+const CATEGORY: Record<string, { label: string; color: string; dot: string }> = {
+  COURSE:   { label: "Course",   color: "bg-blue-500/15 text-blue-400 border-blue-500/25",   dot: "bg-blue-400" },
+  WORKSHOP: { label: "Workshop", color: "bg-purple-500/15 text-purple-400 border-purple-500/25", dot: "bg-purple-400" },
+  SEMINAR:  { label: "Seminar",  color: "bg-amber-500/15 text-amber-400 border-amber-500/25",  dot: "bg-amber-400" },
 };
 
 export default function LearningPage() {
@@ -26,55 +26,68 @@ export default function LearningPage() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen" style={{ background: "var(--bg)" }}>
       <PublicNav />
-      <main className="max-w-5xl mx-auto px-6 pt-28 pb-20">
-        <div className="mb-12">
-          <div className="inline-flex items-center gap-2 bg-blue-50 text-blue-700 text-xs font-semibold px-3 py-1.5 rounded-full mb-4">
-            <BookOpen size={12} />
+
+      {/* Hero */}
+      <section className="relative pt-32 pb-16 overflow-hidden">
+        <div className="orb orb-blue w-[500px] h-[500px] top-0 right-0 opacity-25" />
+        <div className="max-w-5xl mx-auto px-6 relative z-10">
+          <div className="inline-flex items-center gap-2 glass-gold text-[#c9a227] text-xs font-semibold px-3.5 py-1.5 rounded-full border mb-5">
+            <BookOpen size={11} />
             Learning
           </div>
-          <h1 className="text-4xl font-bold text-gray-900 mb-3">Curriculum & Courses</h1>
-          <p className="text-gray-500 max-w-xl">Current educational programs, courses, and workshops offered at Taejae University.</p>
+          <h1 className="text-4xl md:text-5xl font-black tracking-tight text-white mb-3">
+            Curriculum & Courses
+          </h1>
+          <p className="text-base max-w-xl" style={{ color: "var(--text-2)" }}>
+            Current educational programs, courses, and workshops offered at Taejae University.
+          </p>
         </div>
+      </section>
 
+      <main className="max-w-5xl mx-auto px-6 pb-24">
         {loading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="bg-white rounded-3xl p-6 border border-gray-100 animate-pulse h-44" />
+              <div key={i} className="card rounded-3xl h-52 shimmer" />
             ))}
           </div>
         ) : items.length === 0 ? (
-          <div className="text-center py-24 text-gray-400">
-            <BookOpen size={48} className="mx-auto mb-4 opacity-20" />
-            <p className="font-medium">아직 등록된 학습 내용이 없습니다.</p>
-            <p className="text-sm mt-1">관리자 패널에서 콘텐츠를 추가해주세요.</p>
+          <div className="text-center py-32">
+            <BookOpen size={40} className="mx-auto mb-4 opacity-20 text-white" />
+            <p className="text-white/40 font-medium">아직 등록된 학습 내용이 없습니다.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {items.map((item) => {
-              const cat = CATEGORY[item.category as keyof typeof CATEGORY] ?? CATEGORY.COURSE;
+              const cat = CATEGORY[item.category] ?? CATEGORY.COURSE;
               const tags = item.tags ? item.tags.split(",").map((t) => t.trim()).filter(Boolean) : [];
               return (
-                <div key={item.id} className="bg-white rounded-3xl p-6 border border-gray-100 hover:shadow-md transition-shadow flex flex-col">
-                  <span className={`self-start text-xs font-semibold px-2.5 py-1 rounded-full mb-3 ${cat.color}`}>
+                <div key={item.id} className="card rounded-3xl p-6 flex flex-col hover:border-white/15 transition-all">
+                  <div className={`self-start flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full border mb-4 ${cat.color}`}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${cat.dot}`} />
                     {cat.label}
-                  </span>
-                  <h2 className="font-bold text-gray-900 mb-2 leading-snug">{item.title}</h2>
-                  <p className="text-sm text-gray-500 leading-relaxed line-clamp-3 flex-1 mb-4">{item.description}</p>
-
-                  <div className="space-y-1.5 mt-auto">
+                  </div>
+                  <h2 className="font-bold text-white mb-2 leading-snug">{item.title}</h2>
+                  <p className="text-sm leading-relaxed line-clamp-3 flex-1 mb-5" style={{ color: "var(--text-2)" }}>
+                    {item.description}
+                  </p>
+                  <div className="space-y-2 mt-auto border-t border-white/[0.06] pt-4">
                     {item.instructor && (
-                      <div className="flex items-center gap-1.5 text-xs text-gray-400">
+                      <div className="flex items-center gap-1.5 text-xs" style={{ color: "var(--text-3)" }}>
                         <User size={11} />
                         {item.instructor}
                       </div>
                     )}
                     {tags.length > 0 && (
                       <div className="flex items-center gap-1.5 flex-wrap">
-                        <Tag size={11} className="text-gray-300" />
+                        <Tag size={10} style={{ color: "var(--text-3)" }} />
                         {tags.map((t) => (
-                          <span key={t} className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-md">{t}</span>
+                          <span key={t} className="text-[11px] px-2 py-0.5 rounded-md"
+                            style={{ background: "rgba(255,255,255,0.06)", color: "var(--text-2)" }}>
+                            {t}
+                          </span>
                         ))}
                       </div>
                     )}
