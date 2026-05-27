@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Suspense } from "react";
+import { Mail, Lock, ArrowRight } from "lucide-react";
 
 function LoginForm() {
   const router = useRouter();
@@ -42,62 +42,88 @@ function LoginForm() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#0f2340] to-[#1a3a5c] flex items-center justify-center px-4">
-      <div className="w-full max-w-md">
+    <div className="min-h-screen flex items-center justify-center px-4 relative" style={{ background: "var(--bg)" }}>
+      {/* Orbs */}
+      <div className="fixed orb orb-gold w-[500px] h-[500px] top-[-100px] right-[-100px] opacity-15 pointer-events-none" />
+      <div className="fixed orb orb-navy w-[400px] h-[400px] bottom-[-100px] left-[-100px] opacity-30 pointer-events-none" />
+
+      <div className="relative z-10 w-full max-w-sm">
+        {/* Logo */}
         <div className="text-center mb-8">
-          <div className="w-16 h-16 rounded-full bg-gradient-to-br from-[#c9a227] to-[#f0c040] flex items-center justify-center mx-auto mb-4 shadow-lg">
-            <span className="text-white font-bold text-2xl">泰</span>
+          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#1a3a5c] to-[#c9a227] flex items-center justify-center mx-auto mb-5 shadow-2xl shadow-[#c9a227]/20">
+            <span className="text-white font-black text-2xl">泰</span>
           </div>
-          <h1 className="text-2xl font-bold text-white">로그인</h1>
-          <p className="text-blue-200 text-sm mt-1">태재대학교 동문회 커뮤니티</p>
+          <h1 className="text-2xl font-black text-white mb-1">로그인</h1>
+          <p className="text-sm" style={{ color: "var(--text-3)" }}>태재대학교 동문회 커뮤니티</p>
         </div>
 
-        <div className="bg-white rounded-2xl p-8 shadow-2xl">
+        {/* Card */}
+        <div className="card rounded-3xl p-8">
           {(error || errorParam) && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6 text-sm">
+            <div className="bg-red-500/10 border border-red-500/20 text-red-400 px-4 py-3 rounded-xl mb-6 text-sm">
               {error || "로그인 중 오류가 발생했습니다."}
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-5">
+          <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">이메일</label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1a3a5c] focus:border-transparent text-sm"
-                placeholder="your@email.com"
-              />
+              <label className="block text-xs font-semibold mb-2" style={{ color: "var(--text-3)" }}>
+                이메일
+              </label>
+              <div className="relative">
+                <Mail size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2" style={{ color: "var(--text-3)" }} />
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  placeholder="your@email.com"
+                  className="w-full pl-10 pr-4 py-3 rounded-xl text-sm text-white placeholder:text-white/25 focus:outline-none transition-colors"
+                  style={{ background: "rgba(255,255,255,0.06)", border: "1px solid var(--border)" }}
+                />
+              </div>
             </div>
+
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">비밀번호</label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1a3a5c] focus:border-transparent text-sm"
-                placeholder="••••••••"
-              />
+              <label className="block text-xs font-semibold mb-2" style={{ color: "var(--text-3)" }}>
+                비밀번호
+              </label>
+              <div className="relative">
+                <Lock size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2" style={{ color: "var(--text-3)" }} />
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  placeholder="••••••••"
+                  className="w-full pl-10 pr-4 py-3 rounded-xl text-sm text-white placeholder:text-white/25 focus:outline-none transition-colors"
+                  style={{ background: "rgba(255,255,255,0.06)", border: "1px solid var(--border)" }}
+                />
+              </div>
             </div>
 
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 bg-[#1a3a5c] hover:bg-[#0f2340] text-white font-semibold rounded-xl transition-colors disabled:opacity-60"
+              className="w-full py-3 mt-2 bg-[#c9a227] hover:bg-[#f0c040] text-[#060d18] font-bold rounded-xl transition-all disabled:opacity-40 flex items-center justify-center gap-2 shadow-lg shadow-[#c9a227]/20"
             >
-              {loading ? "로그인 중..." : "로그인"}
+              {loading ? "로그인 중..." : (
+                <>
+                  로그인
+                  <ArrowRight size={14} />
+                </>
+              )}
             </button>
           </form>
 
-          <p className="text-center text-sm text-gray-500 mt-6">
-            계정이 없으신가요?{" "}
-            <Link href="/register" className="text-[#1a3a5c] font-semibold hover:underline">
-              가입 신청하기
-            </Link>
-          </p>
+          <div className="mt-6 pt-6 border-t border-white/[0.06] text-center">
+            <p className="text-xs" style={{ color: "var(--text-3)" }}>
+              계정이 없으신가요?{" "}
+              <Link href="/register" className="text-[#c9a227] font-semibold hover:text-[#f0c040] transition-colors">
+                가입 신청하기
+              </Link>
+            </p>
+          </div>
         </div>
       </div>
     </div>
