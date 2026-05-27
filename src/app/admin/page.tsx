@@ -296,7 +296,7 @@ function LearningSection({ items, setItems }: {
     setSaving(true);
     const res = await fetch("/api/learning", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
     setSaving(false);
-    if (res.ok) { setItems((p) => [await res.json(), ...p]); setForm(blank); setAdding(false); setMsg("추가되었습니다."); }
+    if (res.ok) { const data = await res.json(); setItems((p) => [data, ...p]); setForm(blank); setAdding(false); setMsg("추가되었습니다."); }
     else setMsg("저장에 실패했습니다.");
     setTimeout(() => setMsg(""), 3000);
   }
@@ -401,7 +401,7 @@ function ActivitySection({ items, setItems }: {
     setSaving(true);
     const res = await fetch("/api/activities", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
     setSaving(false);
-    if (res.ok) { setItems((p) => [await res.json(), ...p]); setForm(blank); setAdding(false); setMsg("추가되었습니다."); }
+    if (res.ok) { const data = await res.json(); setItems((p) => [data, ...p]); setForm(blank); setAdding(false); setMsg("추가되었습니다."); }
     else setMsg("저장에 실패했습니다.");
     setTimeout(() => setMsg(""), 3000);
   }
