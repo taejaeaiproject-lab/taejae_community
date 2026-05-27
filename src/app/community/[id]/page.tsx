@@ -8,7 +8,7 @@ import Navbar from "@/components/Navbar";
 import RoleBadge from "@/components/RoleBadge";
 import LikeButton from "@/components/LikeButton";
 import { CATEGORIES } from "@/lib/utils";
-import { ArrowLeft, Trash2, Send, CornerDownRight, ChevronDown } from "lucide-react";
+import { ArrowLeft, Trash2, Send, CornerDownRight, ChevronDown, Pencil, X, Check } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 
 type CategoryKey = keyof typeof CATEGORIES;
@@ -187,6 +187,10 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
   const [loading, setLoading] = useState(true);
   const [comment, setComment] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [editTitle, setEditTitle] = useState("");
+  const [editContent, setEditContent] = useState("");
+  const [editSaving, setEditSaving] = useState(false);
 
   useEffect(() => {
     if (status === "unauthenticated") router.push("/login");
@@ -260,6 +264,31 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
     if (res.ok) { toast("게시글이 삭제되었습니다.", "info"); router.push("/community"); }
   }
 
+  function startEdit() {
+    if (!post) return;
+    setEditTitle(post.title);
+    setEditContent(post.content);
+    setEditing(true);
+  }
+
+  async function handleSaveEdit() {
+    if (!post || editSaving) return;
+    setEditSaving(true);
+    const res = await fetch(`/api/posts/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title: editTitle, content: editContent }),
+    });
+    setEditSaving(false);
+    if (res.ok) {
+      setPost((p) => p ? { ...p, title: editTitle, content: editContent } : p);
+      setEditing(false);
+      toast("게시글이 수정되었습니다.", "success");
+    } else {
+      toast("수정에 실패했습니다.", "error");
+    }
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-[#f0f4f8] pb-20 md:pb-0">
@@ -292,12 +321,40 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
                   <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${cat.color}`}>{cat.label}</span>
                   {post.isPinned && <span className="text-xs bg-red-50 text-red-500 px-2.5 py-1 rounded-full font-medium">📌 공지</span>}
                 </div>
-                <h1 className="text-xl md:text-2xl font-bold text-gray-900 leading-snug">{post.title}</h1>
+                {editing ? (
+                  <input
+                    value={editTitle}
+                    onChange={(e) => setEditTitle(e.target.value)}
+                    className="w-full text-xl font-bold border-b-2 border-[#1a3a5c] focus:outline-none py-1 bg-transparent"
+                  />
+                ) : (
+                  <h1 className="text-xl md:text-2xl font-bold text-gray-900 leading-snug">{post.title}</h1>
+                )}
               </div>
               {(session?.user.id === post.author.id || session?.user.role === "ADMIN") && (
-                <button onClick={handleDeletePost} className="p-2 rounded-xl text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors shrink-0">
-                  <Trash2 size={16} />
-                </button>
+                <div className="flex items-center gap-1 shrink-0">
+                  {editing ? (
+                    <>
+                      <button onClick={handleSaveEdit} disabled={editSaving} className="p-2 rounded-xl text-white bg-[#1a3a5c] hover:bg-[#0f2340] transition-colors disabled:opacity-40">
+                        <Check size={15} />
+                      </button>
+                      <button onClick={() => setEditing(false)} className="p-2 rounded-xl text-gray-400 hover:bg-gray-100 transition-colors">
+                        <X size={15} />
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      {session?.user.id === post.author.id && (
+                        <button onClick={startEdit} className="p-2 rounded-xl text-gray-300 hover:text-[#1a3a5c] hover:bg-blue-50 transition-colors">
+                          <Pencil size={15} />
+                        </button>
+                      )}
+                      <button onClick={handleDeletePost} className="p-2 rounded-xl text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors">
+                        <Trash2 size={16} />
+                      </button>
+                    </>
+                  )}
+                </div>
               )}
             </div>
 
@@ -315,8 +372,17 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
               </div>
             </div>
 
-            <div className="py-6 text-gray-700 leading-relaxed whitespace-pre-wrap text-[15px]">
-              {post.content}
+            <div className="py-6">
+              {editing ? (
+                <textarea
+                  value={editContent}
+                  onChange={(e) => setEditContent(e.target.value)}
+                  rows={10}
+                  className="w-full text-[15px] text-gray-700 leading-relaxed border border-gray-200 rounded-2xl p-4 focus:outline-none focus:ring-2 focus:ring-[#1a3a5c]/30 resize-y bg-gray-50 focus:bg-white transition-colors"
+                />
+              ) : (
+                <p className="text-gray-700 leading-relaxed whitespace-pre-wrap text-[15px]">{post.content}</p>
+              )}
             </div>
 
             <div className="flex items-center gap-3 pt-4 border-t border-gray-50">

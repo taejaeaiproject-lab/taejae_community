@@ -3,6 +3,7 @@ generator client {
 }
 
 datasource db {
+  // For Supabase deployment: change to "postgresql" and set DATABASE_URL to direct connection URL
   provider = "sqlite"
 }
 
@@ -28,13 +29,15 @@ model User {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
-  posts          Post[]
-  comments       Comment[]
-  likes          Like[]
-  events         Event[]
-  approvedBy     User?     @relation("Approvals", fields: [approvedById], references: [id])
-  approvedById   String?
-  approvals      User[]    @relation("Approvals")
+  posts                  Post[]
+  comments               Comment[]
+  likes                  Like[]
+  events                 Event[]
+  approvedBy             User?           @relation("Approvals", fields: [approvedById], references: [id])
+  approvedById           String?
+  approvals              User[]          @relation("Approvals")
+  sentMentorRequests     MentorRequest[] @relation("SentRequests")
+  receivedMentorRequests MentorRequest[] @relation("ReceivedRequests")
 
   @@map("users")
 }
@@ -86,6 +89,21 @@ model Like {
   @@unique([userId, postId])
   @@unique([userId, commentId])
   @@map("likes")
+}
+
+model MentorRequest {
+  id         String   @id @default(cuid())
+  fromUserId String
+  fromUser   User     @relation("SentRequests", fields: [fromUserId], references: [id])
+  toUserId   String
+  toUser     User     @relation("ReceivedRequests", fields: [toUserId], references: [id])
+  message    String?
+  status     String   @default("PENDING")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([fromUserId, toUserId])
+  @@map("mentor_requests")
 }
 
 model Event {

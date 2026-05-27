@@ -8,9 +8,19 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url);
   const category = searchParams.get("category");
+  const search = searchParams.get("search");
 
   const where: Record<string, unknown> = {};
   if (category && category !== "ALL") where.category = category;
+  if (search) {
+    const url = process.env.DATABASE_URL ?? "";
+    const isPg = url.startsWith("postgresql") || url.startsWith("postgres");
+    const mode = isPg ? "insensitive" : undefined;
+    where.OR = [
+      { title: { contains: search, ...(mode ? { mode } : {}) } },
+      { content: { contains: search, ...(mode ? { mode } : {}) } },
+    ];
+  }
 
   const posts = await prisma.post.findMany({
     where,

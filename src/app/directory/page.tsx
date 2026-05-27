@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import RoleBadge from "@/components/RoleBadge";
 import { Search, MapPin, Briefcase, ExternalLink } from "lucide-react";
@@ -38,6 +39,7 @@ export default function DirectoryPage() {
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("ALL");
   const [cohortFilter, setCohortFilter] = useState("");
+  const [countryFilter, setCountryFilter] = useState("");
 
   useEffect(() => {
     if (status === "unauthenticated") router.push("/login");
@@ -49,12 +51,13 @@ export default function DirectoryPage() {
     if (roleFilter !== "ALL") params.set("role", roleFilter);
     if (cohortFilter) params.set("cohort", cohortFilter);
     if (search) params.set("search", search);
+    if (countryFilter) params.set("country", countryFilter);
 
     setLoading(true);
     fetch(`/api/users?${params}`)
       .then((r) => r.json())
       .then((data) => { setMembers(data); setLoading(false); });
-  }, [status, roleFilter, cohortFilter, search]);
+  }, [status, roleFilter, cohortFilter, search, countryFilter]);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -97,6 +100,18 @@ export default function DirectoryPage() {
               <option value="2">2기</option>
               <option value="3">3기</option>
             </select>
+            <select
+              value={countryFilter}
+              onChange={(e) => setCountryFilter(e.target.value)}
+              className="px-4 py-2.5 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#1a3a5c]"
+            >
+              <option value="">전체 지역</option>
+              <option value="South Korea">한국</option>
+              <option value="USA">미국</option>
+              <option value="Japan">일본</option>
+              <option value="China">중국</option>
+              <option value="Europe">유럽</option>
+            </select>
           </div>
         </div>
 
@@ -126,7 +141,7 @@ export default function DirectoryPage() {
             <p className="text-sm text-gray-500 mb-4">{members.length}명</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {members.map((m) => (
-                <div key={m.id} className="bg-white rounded-2xl p-6 border border-gray-100 hover:shadow-md transition-shadow">
+                <Link key={m.id} href={`/members/${m.id}`} className="block bg-white rounded-2xl p-6 border border-gray-100 hover:shadow-md transition-shadow card-hover">
                   <div className="flex items-center gap-3 mb-4">
                     <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[#1a3a5c] to-[#c9a227] flex items-center justify-center text-white font-bold text-lg shrink-0">
                       {m.name.charAt(0)}
@@ -165,17 +180,15 @@ export default function DirectoryPage() {
                   )}
 
                   {m.linkedinUrl && (
-                    <a
-                      href={m.linkedinUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-1.5 text-xs text-blue-600 hover:underline"
+                    <span
+                      onClick={(e) => { e.preventDefault(); window.open(m.linkedinUrl!, "_blank", "noopener,noreferrer"); }}
+                      className="flex items-center gap-1.5 text-xs text-blue-600 hover:underline cursor-pointer"
                     >
                       <ExternalLink size={12} />
                       LinkedIn
-                    </a>
+                    </span>
                   )}
-                </div>
+                </Link>
               ))}
             </div>
           </>

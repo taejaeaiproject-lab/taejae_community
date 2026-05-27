@@ -7,7 +7,7 @@ import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import RoleBadge from "@/components/RoleBadge";
 import { CATEGORIES } from "@/lib/utils";
-import { Plus, MessageSquare, Pin } from "lucide-react";
+import { Plus, MessageSquare, Pin, Search, X } from "lucide-react";
 
 type CategoryKey = keyof typeof CATEGORIES;
 
@@ -27,6 +27,8 @@ export default function CommunityPage() {
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [catFilter, setCatFilter] = useState("ALL");
+  const [search, setSearch] = useState("");
+  const [searchInput, setSearchInput] = useState("");
 
   useEffect(() => {
     if (status === "unauthenticated") router.push("/login");
@@ -36,11 +38,12 @@ export default function CommunityPage() {
     if (status !== "authenticated") return;
     const params = new URLSearchParams();
     if (catFilter !== "ALL") params.set("category", catFilter);
+    if (search) params.set("search", search);
     setLoading(true);
     fetch(`/api/posts?${params}`)
       .then((r) => r.json())
       .then((data) => { setPosts(data); setLoading(false); });
-  }, [status, catFilter]);
+  }, [status, catFilter, search]);
 
   function formatDate(s: string) {
     const d = new Date(s);
@@ -51,7 +54,7 @@ export default function CommunityPage() {
     <div className="min-h-screen bg-gray-50">
       <Navbar />
       <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-2xl font-bold text-gray-900 mb-1">커뮤니티</h1>
             <p className="text-gray-500 text-sm">태재인들의 이야기를 나눠보세요</p>
@@ -64,6 +67,38 @@ export default function CommunityPage() {
             글쓰기
           </Link>
         </div>
+
+        {/* Search */}
+        <form
+          onSubmit={(e) => { e.preventDefault(); setSearch(searchInput); }}
+          className="mb-4 flex gap-2"
+        >
+          <div className="relative flex-1">
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              placeholder="게시글 검색..."
+              className="w-full pl-9 pr-8 py-2.5 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#1a3a5c]"
+            />
+            {searchInput && (
+              <button
+                type="button"
+                onClick={() => { setSearchInput(""); setSearch(""); }}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-500"
+              >
+                <X size={14} />
+              </button>
+            )}
+          </div>
+          <button
+            type="submit"
+            className="px-4 py-2.5 bg-[#1a3a5c] hover:bg-[#0f2340] text-white text-sm font-medium rounded-xl transition-colors"
+          >
+            검색
+          </button>
+        </form>
 
         {/* Category Tabs */}
         <div className="flex gap-2 mb-6 overflow-x-auto pb-2">

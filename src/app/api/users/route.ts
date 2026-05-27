@@ -10,16 +10,22 @@ export async function GET(req: NextRequest) {
   const role = searchParams.get("role");
   const cohort = searchParams.get("cohort");
   const search = searchParams.get("search");
+  const country = searchParams.get("country");
+
+  const url = process.env.DATABASE_URL ?? "";
+  const isPg = url.startsWith("postgresql") || url.startsWith("postgres");
+  const mode = isPg ? "insensitive" : undefined;
 
   const where: Record<string, unknown> = { status: "APPROVED", isPublic: true };
   if (role && role !== "ALL") where.role = role;
   if (cohort) where.cohort = parseInt(cohort);
+  if (country) where.currentCountry = { contains: country, ...(mode ? { mode } : {}) };
   if (search) {
     where.OR = [
-      { name: { contains: search } },
-      { nameEn: { contains: search } },
-      { company: { contains: search } },
-      { jobTitle: { contains: search } },
+      { name: { contains: search, ...(mode ? { mode } : {}) } },
+      { nameEn: { contains: search, ...(mode ? { mode } : {}) } },
+      { company: { contains: search, ...(mode ? { mode } : {}) } },
+      { jobTitle: { contains: search, ...(mode ? { mode } : {}) } },
     ];
   }
 

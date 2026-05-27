@@ -66,12 +66,29 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
-  if (!session || session.user.role !== "ADMIN") {
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { id } = await params;
+  const body = await req.json();
+
+  const existing = await prisma.post.findUnique({ where: { id } });
+  if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  // Admin can pin; author or admin can edit content
+  if (body.isPinned !== undefined && session.user.role !== "ADMIN") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
-  const { id } = await params;
-  const { isPinned } = await req.json();
-  const post = await prisma.post.update({ where: { id }, data: { isPinned } });
+  if ((body.title || body.content || body.category) && existing.authorId !== session.user.id && session.user.role !== "ADMIN") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const data: Record<string, unknown> = {};
+  if (body.isPinned !== undefined) data.isPinned = body.isPinned;
+  if (body.title) data.title = body.title;
+  if (body.content) data.content = body.content;
+  if (body.category) data.category = body.category;
+
+  const post = await prisma.post.update({ where: { id }, data });
   return NextResponse.json(post);
 }
 
