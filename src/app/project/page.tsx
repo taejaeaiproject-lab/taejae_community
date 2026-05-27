@@ -17,15 +17,24 @@ const STATUS = {
   COMPLETED: { label: "완료",    color: "bg-blue-500/15 text-blue-400 border-blue-500/25",          dot: "bg-blue-400" },
 };
 
+const FILTERS = [
+  { key: "ALL",       label: "전체" },
+  { key: "ONGOING",   label: "진행 중" },
+  { key: "COMPLETED", label: "완료" },
+];
+
 export default function ProjectPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState("ALL");
 
   useEffect(() => {
     fetch("/api/projects")
       .then((r) => r.json())
       .then((d) => { setProjects(Array.isArray(d) ? d : []); setLoading(false); });
   }, []);
+
+  const filtered = filter === "ALL" ? projects : projects.filter((p) => p.status === filter);
 
   return (
     <div className="min-h-screen" style={{ background: "var(--bg)" }}>
@@ -35,13 +44,14 @@ export default function ProjectPage() {
       <section className="relative pt-32 pb-16 overflow-hidden">
         <div className="orb orb-blue w-[400px] h-[400px] top-0 right-0 opacity-20" />
         <div className="orb orb-gold w-[300px] h-[300px] bottom-0 left-0 opacity-15" />
-        <div className="max-w-5xl mx-auto px-6 relative z-10">
+        <div className="max-w-6xl mx-auto px-6 relative z-10">
           <div className="inline-flex items-center gap-2 text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 text-xs font-semibold px-3.5 py-1.5 rounded-full mb-5">
             <FolderKanban size={11} />
             Projects
           </div>
-          <h1 className="text-4xl md:text-5xl font-black tracking-tight text-white mb-3">
-            Student Projects
+          <h1 className="text-4xl md:text-6xl font-black tracking-tight text-white mb-3 leading-tight">
+            Student Projects<br />
+            <span className="gold-text">둘러보기</span>
           </h1>
           <p className="text-base max-w-xl" style={{ color: "var(--text-2)" }}>
             Explore what Taejae students are building — from research to real-world impact across 7 global cities.
@@ -49,21 +59,48 @@ export default function ProjectPage() {
         </div>
       </section>
 
-      <main className="max-w-5xl mx-auto px-6 pb-24">
+      <main className="max-w-6xl mx-auto px-6 pb-24">
+        {/* Filter + Count row */}
+        <div className="flex items-center justify-between mb-8 gap-4 flex-wrap">
+          <div className="flex gap-2">
+            {FILTERS.map((f) => (
+              <button
+                key={f.key}
+                onClick={() => setFilter(f.key)}
+                className="px-5 py-2 rounded-full text-sm font-semibold transition-all"
+                style={{
+                  background: filter === f.key ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.05)",
+                  border: `1px solid ${filter === f.key ? "rgba(255,255,255,0.2)" : "rgba(255,255,255,0.08)"}`,
+                  color: filter === f.key ? "#fff" : "var(--text-3)",
+                }}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+          {!loading && (
+            <p className="text-sm font-medium" style={{ color: "var(--text-3)" }}>
+              {filtered.length}개의 프로젝트
+            </p>
+          )}
+        </div>
+
         {loading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {Array.from({ length: 4 }).map((_, i) => (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {Array.from({ length: 6 }).map((_, i) => (
               <div key={i} className="card rounded-3xl h-52 shimmer" />
             ))}
           </div>
-        ) : projects.length === 0 ? (
+        ) : filtered.length === 0 ? (
           <div className="text-center py-32">
             <FolderKanban size={40} className="mx-auto mb-4 opacity-20 text-white" />
-            <p className="text-white/40 font-medium">아직 등록된 프로젝트가 없습니다.</p>
+            <p className="text-white/40 font-medium">
+              {filter === "ALL" ? "아직 등록된 프로젝트가 없습니다." : "해당 상태의 프로젝트가 없습니다."}
+            </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {projects.map((p) => {
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filtered.map((p) => {
               const s = STATUS[p.status as keyof typeof STATUS] ?? STATUS.ONGOING;
               const tags = p.tags ? p.tags.split(",").map((t) => t.trim()).filter(Boolean) : [];
               const members = p.teamMembers ? p.teamMembers.split(",").map((m) => m.trim()).filter(Boolean) : [];
@@ -71,7 +108,7 @@ export default function ProjectPage() {
                 <Link
                   key={p.id}
                   href={`/project/${p.id}`}
-                  className="group card rounded-3xl p-7 hover:border-emerald-500/25 transition-all duration-200 hover:-translate-y-1 flex flex-col"
+                  className="group card rounded-3xl p-6 hover:border-emerald-500/25 transition-all duration-200 hover:-translate-y-1 flex flex-col"
                 >
                   <div className="flex items-start justify-between mb-4">
                     <div className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full border ${s.color}`}>
@@ -79,15 +116,15 @@ export default function ProjectPage() {
                       {s.label}
                     </div>
                     <ArrowRight
-                      size={16}
-                      className="text-white/20 group-hover:text-emerald-400 group-hover:translate-x-0.5 transition-all"
+                      size={15}
+                      className="text-white/20 group-hover:text-emerald-400 group-hover:translate-x-0.5 transition-all shrink-0"
                     />
                   </div>
 
-                  <h2 className="font-bold text-white text-lg leading-snug mb-2 group-hover:text-emerald-300 transition-colors">
+                  <h2 className="font-bold text-white text-base leading-snug mb-2 group-hover:text-emerald-300 transition-colors">
                     {p.title}
                   </h2>
-                  <p className="text-sm leading-relaxed line-clamp-2 flex-1 mb-5" style={{ color: "var(--text-2)" }}>
+                  <p className="text-sm leading-relaxed line-clamp-2 flex-1 mb-4" style={{ color: "var(--text-2)" }}>
                     {p.description}
                   </p>
 
@@ -103,15 +140,15 @@ export default function ProjectPage() {
                     </div>
                   )}
 
-                  <div className="flex items-center justify-between pt-4 border-t border-white/[0.06]">
+                  <div className="flex items-center justify-between pt-3 border-t border-white/[0.06]">
                     {members.length > 0 && (
                       <div className="flex items-center gap-1.5 text-xs" style={{ color: "var(--text-3)" }}>
-                        <Users size={12} />
+                        <Users size={11} />
                         {members.slice(0, 2).join(", ")}{members.length > 2 && ` +${members.length - 2}`}
                       </div>
                     )}
                     <div className="flex items-center gap-1 text-xs ml-auto" style={{ color: "var(--text-3)" }}>
-                      <MessageSquare size={12} />
+                      <MessageSquare size={11} />
                       {p._count.comments}
                     </div>
                   </div>
