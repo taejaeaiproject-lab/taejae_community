@@ -3,8 +3,7 @@ generator client {
 }
 
 datasource db {
-  // For Supabase deployment: change to "postgresql" and set DATABASE_URL to direct connection URL
-  provider = "sqlite"
+  provider = "postgresql"
 }
 
 model User {
