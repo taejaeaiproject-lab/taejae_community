@@ -1,0 +1,67 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model User {
+  id             String    @id @default(cuid())
+  email          String    @unique
+  name           String
+  nameEn         String?
+  password       String
+  role           String    @default("STUDENT")
+  status         String    @default("PENDING")
+  cohort         Int?
+  major          String?
+  currentCity    String?
+  currentCountry String?
+  bio            String?
+  linkedinUrl    String?
+  instagramUrl   String?
+  profileImage   String?
+  graduationYear Int?
+  company        String?
+  jobTitle       String?
+  isPublic       Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  posts          Post[]
+  comments       Comment[]
+  approvedBy     User?     @relation("Approvals", fields: [approvedById], references: [id])
+  approvedById   String?
+  approvals      User[]    @relation("Approvals")
+
+  @@map("users")
+}
+
+model Post {
+  id        String    @id @default(cuid())
+  title     String
+  content   String
+  category  String    @default("GENERAL")
+  isPinned  Boolean   @default(false)
+  authorId  String
+  author    User      @relation(fields: [authorId], references: [id])
+  comments  Comment[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@map("posts")
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  content   String
+  postId    String
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("comments")
+}
