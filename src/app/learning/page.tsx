@@ -67,9 +67,9 @@ export default function LearningPage() {
                 onClick={() => setFilter(f.key)}
                 className="px-4 py-2 rounded-full text-sm font-semibold transition-all"
                 style={{
-                  background: filter === f.key ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.05)",
-                  border: `1px solid ${filter === f.key ? "rgba(255,255,255,0.2)" : "rgba(255,255,255,0.08)"}`,
-                  color: filter === f.key ? "#fff" : "var(--text-3)",
+                  background: filter === f.key ? "var(--chip-bg-active)" : "var(--chip-bg)",
+                  border: `1px solid ${filter === f.key ? "var(--chip-border-active)" : "var(--chip-border)"}`,
+                  color: filter === f.key ? "var(--text)" : "var(--text-3)",
                 }}
               >
                 {f.label}

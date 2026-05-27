@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
 import { Menu, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import ThemeToggle from "./ThemeToggle";
 
 const NAV = [
   { href: "/", label: "Home" },
@@ -28,26 +29,27 @@ export default function PublicNav() {
 
   return (
     <nav
-      className={cn(
-        "fixed top-0 inset-x-0 z-50 transition-all duration-300",
-        scrolled
-          ? "bg-[#060d18]/90 backdrop-blur-xl border-b border-white/[0.07]"
-          : "bg-transparent"
-      )}
+      className="fixed top-0 inset-x-0 z-50 transition-all duration-300"
+      style={scrolled ? {
+        background: "var(--nav-bg)",
+        backdropFilter: "blur(20px)",
+        WebkitBackdropFilter: "blur(20px)",
+        borderBottom: "1px solid var(--nav-border)",
+      } : {}}
     >
       <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2.5 group">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#1a3a5c] to-[#c9a227] flex items-center justify-center shadow-lg shadow-[#c9a227]/20 group-hover:shadow-[#c9a227]/40 transition-shadow">
-            <span className="text-white font-bold text-base">泰</span>
+          <div className="logo-icon w-9 h-9 rounded-xl bg-gradient-to-br from-[#1a3a5c] to-[#c9a227] flex items-center justify-center shadow-lg shadow-[#c9a227]/20 group-hover:shadow-[#c9a227]/40 transition-shadow">
+            <span className="font-bold text-base">泰</span>
           </div>
           <div className="hidden sm:block">
-            <div className="text-white font-bold text-sm leading-tight">Taejae University</div>
+            <div className="font-bold text-sm leading-tight" style={{ color: "var(--text)" }}>Taejae University</div>
             <div className="text-[#c9a227] text-[10px] leading-tight tracking-wide">GREAT HARMONY</div>
           </div>
         </Link>
 
-        {/* Desktop nav */}
+        {/* Desktop nav links */}
         <div className="hidden md:flex items-center gap-1">
           {NAV.map(({ href, label }) => {
             const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
@@ -59,8 +61,9 @@ export default function PublicNav() {
                   "px-4 py-2 rounded-xl text-sm font-medium transition-all",
                   active
                     ? "text-[#c9a227] bg-[#c9a227]/10 border border-[#c9a227]/20"
-                    : "text-white/60 hover:text-white hover:bg-white/[0.06]"
+                    : "hover:bg-[var(--chip-bg)]"
                 )}
+                style={{ color: active ? undefined : "var(--text-2)" }}
               >
                 {label}
               </Link>
@@ -68,21 +71,29 @@ export default function PublicNav() {
           })}
         </div>
 
-        {/* Mobile hamburger */}
-        <button
-          className="md:hidden p-2 rounded-xl hover:bg-white/[0.06] transition-colors"
-          onClick={() => setOpen((v) => !v)}
-        >
-          {open
-            ? <X size={20} className="text-white/80" />
-            : <Menu size={20} className="text-white/80" />
-          }
-        </button>
+        {/* Right side: theme toggle + mobile hamburger */}
+        <div className="flex items-center gap-2">
+          <ThemeToggle />
+          <button
+            className="md:hidden p-2 rounded-xl transition-colors hover:bg-[var(--chip-bg)]"
+            style={{ color: "var(--text-2)" }}
+            onClick={() => setOpen((v) => !v)}
+          >
+            {open ? <X size={20} /> : <Menu size={20} />}
+          </button>
+        </div>
       </div>
 
       {/* Mobile menu */}
       {open && (
-        <div className="md:hidden border-t border-white/[0.07] bg-[#060d18]/95 backdrop-blur-xl px-6 py-4 space-y-1">
+        <div
+          className="md:hidden border-t px-6 py-4 space-y-1"
+          style={{
+            background: "var(--nav-bg-mobile)",
+            backdropFilter: "blur(20px)",
+            borderTopColor: "var(--nav-border)",
+          }}
+        >
           {NAV.map(({ href, label }) => {
             const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
             return (
@@ -94,8 +105,9 @@ export default function PublicNav() {
                   "block px-4 py-3 rounded-xl text-sm font-medium transition-all",
                   active
                     ? "text-[#c9a227] bg-[#c9a227]/10 border border-[#c9a227]/20"
-                    : "text-white/60 hover:text-white hover:bg-white/[0.06]"
+                    : "hover:bg-[var(--chip-bg)]"
                 )}
+                style={{ color: active ? undefined : "var(--text-2)" }}
               >
                 {label}
               </Link>

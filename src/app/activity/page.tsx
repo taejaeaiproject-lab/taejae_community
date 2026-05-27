@@ -193,18 +193,18 @@ export default function ActivityPage() {
                         className="flex flex-col items-center py-1.5 rounded-lg transition-all"
                         style={{
                           background: isSel
-                            ? "rgba(201,162,39,0.2)"
+                            ? "rgba(201,162,39,0.20)"
                             : isToday
-                            ? "rgba(255,255,255,0.08)"
+                            ? "var(--chip-bg-active)"
                             : "transparent",
                           border: isSel
-                            ? "1px solid rgba(201,162,39,0.4)"
+                            ? "1px solid rgba(201,162,39,0.45)"
                             : isToday
-                            ? "1px solid rgba(255,255,255,0.15)"
+                            ? "1px solid var(--chip-border-active)"
                             : "1px solid transparent",
                         }}>
                         <span className="text-[11px] font-semibold" style={{
-                          color: isSel ? "#f0c040" : isToday ? "#fff" : isSun ? "#fb7185" : isSat ? "#60a5fa" : "var(--text-2)",
+                          color: isSel ? "#f0c040" : isToday ? "var(--text)" : isSun ? "#fb7185" : isSat ? "#60a5fa" : "var(--text-2)",
                         }}>
                           {day}
                         </span>

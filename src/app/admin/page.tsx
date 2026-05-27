@@ -8,6 +8,7 @@ import {
   FolderKanban, BookOpen, Zap, Plus, Pencil, Trash2,
   Check, X, LogOut, ExternalLink, ChevronDown, ChevronUp,
 } from "lucide-react";
+import ThemeToggle from "@/components/ThemeToggle";
 
 /* ─── Types ─────────────────────────────────────────────────────── */
 type Project = {
@@ -30,8 +31,8 @@ const iStyle = [
   "w-full px-3 py-2.5 rounded-xl text-sm text-white",
   "placeholder:text-white/25 focus:outline-none transition-colors",
 ].join(" ");
-const iBox = { background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)" };
-const iBoxFocus = { background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.25)" };
+const iBox = { background: "var(--input-bg)", border: "1px solid var(--border)" };
+const iBoxFocus = { background: "var(--input-bg)", border: "1px solid var(--border-gold)" };
 
 function DInput({ value, onChange, placeholder, className = "" }: {
   value: string; onChange: (v: string) => void; placeholder?: string; className?: string;
@@ -137,8 +138,8 @@ function FormPanel({ title, onClose, children, onSubmit, saving }: {
   return (
     <form onSubmit={onSubmit}
       className="mx-4 mb-2 rounded-2xl p-5 space-y-3"
-      style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)" }}>
-      <p className="text-sm font-bold text-white mb-4">{title}</p>
+      style={{ background: "var(--surface-4)", border: "1px solid var(--border)" }}>
+      <p className="text-sm font-bold mb-4" style={{ color: "var(--text)" }}>{title}</p>
       {children}
       <div className="flex gap-2 pt-1">
         <button type="submit" disabled={saving}
@@ -148,7 +149,7 @@ function FormPanel({ title, onClose, children, onSubmit, saving }: {
         </button>
         <button type="button" onClick={onClose}
           className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold transition-colors"
-          style={{ background: "rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.5)" }}>
+          style={{ background: "var(--chip-bg)", color: "var(--text-3)" }}>
           <X size={13} />취소
         </button>
       </div>
@@ -534,12 +535,12 @@ export default function AdminPage() {
     <div className="min-h-screen pb-20" style={{ background: "var(--bg)" }}>
       {/* Admin Nav */}
       <header className="fixed top-0 inset-x-0 z-50 h-14 flex items-center px-6 gap-4"
-        style={{ background: "rgba(6,13,24,0.9)", backdropFilter: "blur(20px)", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+        style={{ background: "var(--nav-bg)", backdropFilter: "blur(20px)", borderBottom: "1px solid var(--nav-border)" }}>
         <Link href="/" className="flex items-center gap-2 mr-4">
-          <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-[#1a3a5c] to-[#c9a227] flex items-center justify-center">
-            <span className="text-white font-black text-xs">泰</span>
+          <div className="logo-icon w-7 h-7 rounded-lg bg-gradient-to-br from-[#1a3a5c] to-[#c9a227] flex items-center justify-center">
+            <span className="font-black text-xs">泰</span>
           </div>
-          <span className="text-white font-black text-sm hidden sm:block">관리자 패널</span>
+          <span className="font-black text-sm hidden sm:block" style={{ color: "var(--text)" }}>관리자 패널</span>
         </Link>
 
         {TABS.map(({ key, label: lbl, icon: Icon }) => (
@@ -547,7 +548,7 @@ export default function AdminPage() {
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
             style={{
               background: tab === key ? "rgba(201,162,39,0.15)" : "transparent",
-              color: tab === key ? "#c9a227" : "rgba(255,255,255,0.4)",
+              color: tab === key ? "#c9a227" : "var(--text-3)",
               border: tab === key ? "1px solid rgba(201,162,39,0.25)" : "1px solid transparent",
             }}>
             <Icon size={13} />{lbl}
@@ -557,12 +558,13 @@ export default function AdminPage() {
         <div className="ml-auto flex items-center gap-2">
           <Link href="/" target="_blank"
             className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors"
-            style={{ color: "rgba(255,255,255,0.4)", background: "rgba(255,255,255,0.05)" }}>
+            style={{ color: "var(--text-3)", background: "var(--chip-bg)" }}>
             <ExternalLink size={11} />사이트
           </Link>
+          <ThemeToggle />
           <button onClick={() => signOut({ callbackUrl: "/login" })}
             className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors"
-            style={{ color: "rgba(255,255,255,0.4)", background: "rgba(255,255,255,0.05)" }}>
+            style={{ color: "var(--text-3)", background: "var(--chip-bg)" }}>
             <LogOut size={11} />로그아웃
           </button>
         </div>
