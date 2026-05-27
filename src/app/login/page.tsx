@@ -36,7 +36,7 @@ function LoginForm() {
     } else if (res?.error) {
       setError("이메일 또는 비밀번호가 올바르지 않습니다.");
     } else {
-      router.push("/dashboard");
+      router.push("/admin");
       router.refresh();
     }
   }
@@ -118,10 +118,7 @@ function LoginForm() {
 
           <div className="mt-6 pt-6 border-t border-white/[0.06] text-center">
             <p className="text-xs" style={{ color: "var(--text-3)" }}>
-              계정이 없으신가요?{" "}
-              <Link href="/register" className="text-[#c9a227] font-semibold hover:text-[#f0c040] transition-colors">
-                가입 신청하기
-              </Link>
+              관리자 전용 로그인입니다.
             </p>
           </div>
         </div>

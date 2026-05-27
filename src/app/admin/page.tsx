@@ -1,40 +1,19 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useSession } from "next-auth/react";
+import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import Navbar from "@/components/Navbar";
-import RoleBadge from "@/components/RoleBadge";
-import { useToast } from "@/components/ui/Toast";
-import { cn } from "@/lib/utils";
-import { CATEGORIES } from "@/lib/utils";
+import Link from "next/link";
 import {
-  Check, X, Users, Clock, MessageSquare, FileText,
-  Pin, Trash2, BarChart3, FolderKanban, BookOpen, Zap, Plus,
+  FolderKanban, BookOpen, Zap, Plus, Pencil, Trash2,
+  Check, X, LogOut, ExternalLink, ChevronDown, ChevronUp,
 } from "lucide-react";
 
-type CategoryKey = keyof typeof CATEGORIES;
-
-type User = {
-  id: string; name: string; nameEn: string | null; email: string;
-  role: string; status: string; cohort: number | null; major: string | null;
-  createdAt: string;
-};
-type Post = {
-  id: string; title: string; category: string; isPinned: boolean; createdAt: string;
-  author: { name: string; role: string };
-  _count: { comments: number; likes: number };
-};
-type Comment = {
-  id: string; content: string; isDeleted: boolean; createdAt: string;
-  author: { name: string; role: string };
-  post: { id: string; title: string };
-};
+/* ─── Types ─────────────────────────────────────────────────────── */
 type Project = {
   id: string; title: string; description: string; tags: string | null;
   status: string; teamMembers: string | null; demoUrl: string | null;
-  githubUrl: string | null; createdAt: string;
-  _count: { comments: number };
+  githubUrl: string | null; _count: { comments: number };
 };
 type LearningItem = {
   id: string; title: string; description: string;
@@ -44,661 +23,557 @@ type ActivityItem = {
   id: string; title: string; description: string;
   type: string; date: string | null; tags: string | null;
 };
+type Tab = "project" | "learning" | "activity";
 
-const TABS = [
-  { key: "members",  label: "회원",    icon: Users },
-  { key: "projects", label: "Project", icon: FolderKanban },
-  { key: "learning", label: "Learning",icon: BookOpen },
-  { key: "activity", label: "Activity",icon: Zap },
-  { key: "posts",    label: "게시글",  icon: FileText },
-  { key: "comments", label: "댓글",    icon: MessageSquare },
-  { key: "stats",    label: "통계",    icon: BarChart3 },
-] as const;
-type TabKey = typeof TABS[number]["key"];
+/* ─── Helpers ────────────────────────────────────────────────────── */
+const iStyle = [
+  "w-full px-3 py-2.5 rounded-xl text-sm text-white",
+  "placeholder:text-white/25 focus:outline-none transition-colors",
+].join(" ");
+const iBox = { background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)" };
+const iBoxFocus = { background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.25)" };
 
-function formatDate(s: string) {
-  return new Date(s).toLocaleDateString("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit" });
+function DInput({ value, onChange, placeholder, className = "" }: {
+  value: string; onChange: (v: string) => void; placeholder?: string; className?: string;
+}) {
+  return (
+    <input
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder}
+      className={`${iStyle} ${className}`}
+      style={iBox}
+      onFocus={(e) => Object.assign(e.currentTarget.style, iBoxFocus)}
+      onBlur={(e) => Object.assign(e.currentTarget.style, iBox)}
+    />
+  );
 }
 
-/* ─── Reusable Field ────────────────────────────────────────── */
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function DTextarea({ value, onChange, placeholder, rows = 3 }: {
+  value: string; onChange: (v: string) => void; placeholder?: string; rows?: number;
+}) {
   return (
-    <div>
-      <label className="block text-xs font-semibold text-gray-500 mb-1">{label}</label>
-      {children}
+    <textarea
+      rows={rows}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder}
+      className={`${iStyle} resize-none`}
+      style={iBox}
+    />
+  );
+}
+
+function DSelect({ value, onChange, options }: {
+  value: string; onChange: (v: string) => void;
+  options: { value: string; label: string }[];
+}) {
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className={`${iStyle} cursor-pointer`}
+      style={{ ...iBox, colorScheme: "dark" }}
+    >
+      {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+    </select>
+  );
+}
+
+const label = (text: string) => (
+  <p className="text-xs font-semibold mb-1.5" style={{ color: "rgba(255,255,255,0.4)" }}>{text}</p>
+);
+
+/* ─── Tag/Status Badges ──────────────────────────────────────────── */
+const PROJECT_STATUS: Record<string, string> = {
+  ONGOING:   "bg-emerald-500/15 text-emerald-400 border border-emerald-500/25",
+  COMPLETED: "bg-blue-500/15 text-blue-400 border border-blue-500/25",
+};
+const LEARN_CAT: Record<string, string> = {
+  COURSE:   "bg-blue-500/15 text-blue-400 border border-blue-500/25",
+  WORKSHOP: "bg-purple-500/15 text-purple-400 border border-purple-500/25",
+  SEMINAR:  "bg-amber-500/15 text-amber-400 border border-amber-500/25",
+};
+const ACT_TYPE: Record<string, string> = {
+  SESSION:       "bg-amber-500/15 text-amber-400 border border-amber-500/25",
+  WORKSHOP:      "bg-orange-500/15 text-orange-400 border border-orange-500/25",
+  COLLABORATION: "bg-rose-500/15 text-rose-400 border border-rose-500/25",
+};
+const ACT_LABEL: Record<string, string> = { SESSION: "Active Learning", WORKSHOP: "Workshop", COLLABORATION: "Collaboration" };
+
+/* ─── Item Row (display) ─────────────────────────────────────────── */
+function ItemRow({ badge, title, sub, onEdit, onDelete }: {
+  badge: React.ReactNode; title: string; sub?: string;
+  onEdit: () => void; onDelete: () => void;
+}) {
+  return (
+    <div className="group flex items-center gap-3 px-5 py-4 border-b border-white/[0.05] hover:bg-white/[0.02] transition-colors last:border-0">
+      <div className="shrink-0">{badge}</div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-semibold text-white truncate">{title}</p>
+        {sub && <p className="text-xs truncate mt-0.5" style={{ color: "rgba(255,255,255,0.35)" }}>{sub}</p>}
+      </div>
+      <div className="flex gap-1.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+        <button onClick={onEdit}
+          className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors"
+          style={{ background: "rgba(201,162,39,0.15)", color: "#c9a227" }}>
+          <Pencil size={11} />수정
+        </button>
+        <button onClick={onDelete}
+          className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors"
+          style={{ background: "rgba(239,68,68,0.12)", color: "#f87171" }}>
+          <Trash2 size={11} />삭제
+        </button>
+      </div>
     </div>
   );
 }
-const inp = "w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3a5c]/20 bg-white";
-const textarea = `${inp} resize-none`;
 
-/* ─── Add Project Form ──────────────────────────────────────── */
-function AddProjectForm({ onAdd }: { onAdd: (p: Project) => void }) {
-  const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ title: "", description: "", tags: "", status: "ONGOING", teamMembers: "", demoUrl: "", githubUrl: "" });
-  const [saving, setSaving] = useState(false);
-  const { toast } = useToast();
+/* ─── Edit/Add form panel ────────────────────────────────────────── */
+function FormPanel({ title, onClose, children, onSubmit, saving }: {
+  title: string; onClose: () => void; onSubmit: (e: React.FormEvent) => void;
+  saving: boolean; children: React.ReactNode;
+}) {
+  return (
+    <form onSubmit={onSubmit}
+      className="mx-4 mb-2 rounded-2xl p-5 space-y-3"
+      style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)" }}>
+      <p className="text-sm font-bold text-white mb-4">{title}</p>
+      {children}
+      <div className="flex gap-2 pt-1">
+        <button type="submit" disabled={saving}
+          className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold transition-all disabled:opacity-40"
+          style={{ background: "#c9a227", color: "#060d18" }}>
+          <Check size={13} />{saving ? "저장 중…" : "저장"}
+        </button>
+        <button type="button" onClick={onClose}
+          className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold transition-colors"
+          style={{ background: "rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.5)" }}>
+          <X size={13} />취소
+        </button>
+      </div>
+    </form>
+  );
+}
 
-  async function submit(e: React.FormEvent) {
+/* ─── Project Section ────────────────────────────────────────────── */
+function ProjectSection({ items, setItems }: {
+  items: Project[]; setItems: React.Dispatch<React.SetStateAction<Project[]>>;
+}) {
+  const [adding, setAdding]     = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [saving, setSaving]     = useState(false);
+  const [msg, setMsg]           = useState("");
+
+  const blank = { title: "", description: "", tags: "", status: "ONGOING", teamMembers: "", demoUrl: "", githubUrl: "" };
+  const [form, setForm] = useState(blank);
+  const [editForm, setEditForm] = useState<typeof blank & { id?: string }>(blank);
+
+  const f = (k: keyof typeof blank) => (v: string) => setForm((p) => ({ ...p, [k]: v }));
+  const ef = (k: keyof typeof blank) => (v: string) => setEditForm((p) => ({ ...p, [k]: v }));
+
+  async function add(e: React.FormEvent) {
     e.preventDefault();
     if (!form.title || !form.description) return;
     setSaving(true);
-    const res = await fetch("/api/projects", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
-    });
+    const res = await fetch("/api/projects", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
     setSaving(false);
     if (res.ok) {
       const data = await res.json();
-      onAdd({ ...data, _count: { comments: 0 } });
-      setForm({ title: "", description: "", tags: "", status: "ONGOING", teamMembers: "", demoUrl: "", githubUrl: "" });
-      setOpen(false);
-      toast("프로젝트가 추가되었습니다.", "success");
-    } else toast("추가에 실패했습니다.", "error");
+      setItems((p) => [{ ...data, _count: { comments: 0 } }, ...p]);
+      setForm(blank); setAdding(false); setMsg("추가되었습니다.");
+    } else setMsg("저장에 실패했습니다.");
+    setTimeout(() => setMsg(""), 3000);
   }
 
-  if (!open) return (
-    <button onClick={() => setOpen(true)}
-      className="flex items-center gap-2 px-4 py-2 bg-[#1a3a5c] hover:bg-[#0f2340] text-white text-sm font-semibold rounded-xl transition-colors">
-      <Plus size={14} />새 프로젝트
-    </button>
-  );
+  async function save(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editForm.id) return;
+    setSaving(true);
+    const { id, ...data } = editForm;
+    const res = await fetch(`/api/projects/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
+    setSaving(false);
+    if (res.ok) {
+      const updated = await res.json();
+      setItems((p) => p.map((x) => x.id === id ? { ...updated, _count: x._count } : x));
+      setEditingId(null); setMsg("수정되었습니다.");
+    } else setMsg("수정에 실패했습니다.");
+    setTimeout(() => setMsg(""), 3000);
+  }
+
+  async function del(id: string) {
+    if (!confirm("삭제하시겠습니까?")) return;
+    const res = await fetch(`/api/projects/${id}`, { method: "DELETE" });
+    if (res.ok) { setItems((p) => p.filter((x) => x.id !== id)); setMsg("삭제되었습니다."); }
+    setTimeout(() => setMsg(""), 3000);
+  }
 
   return (
-    <form onSubmit={submit} className="border border-[#1a3a5c]/20 rounded-2xl p-5 bg-[#1a3a5c]/3 space-y-3">
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <Field label="제목 *"><input value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} className={inp} placeholder="프로젝트 이름" /></Field>
-        <Field label="상태">
-          <select value={form.status} onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))} className={inp}>
-            <option value="ONGOING">진행 중</option>
-            <option value="COMPLETED">완료</option>
-          </select>
-        </Field>
+    <div>
+      <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
+        <span className="text-sm font-semibold text-white">{items.length}개의 프로젝트</span>
+        <div className="flex items-center gap-3">
+          {msg && <span className="text-xs" style={{ color: "#c9a227" }}>{msg}</span>}
+          <button onClick={() => { setAdding((v) => !v); setEditingId(null); }}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all"
+            style={{ background: adding ? "rgba(255,255,255,0.1)" : "#c9a227", color: adding ? "white" : "#060d18" }}>
+            {adding ? <ChevronUp size={13} /> : <Plus size={13} />}새 프로젝트
+          </button>
+        </div>
       </div>
-      <Field label="설명 *"><textarea rows={3} value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} className={textarea} placeholder="프로젝트 설명" /></Field>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <Field label="팀원 (쉼표 구분)"><input value={form.teamMembers} onChange={(e) => setForm((f) => ({ ...f, teamMembers: e.target.value }))} className={inp} placeholder="홍길동, 김철수" /></Field>
-        <Field label="태그 (쉼표 구분)"><input value={form.tags} onChange={(e) => setForm((f) => ({ ...f, tags: e.target.value }))} className={inp} placeholder="AI, 데이터, UX" /></Field>
-        <Field label="Demo URL"><input value={form.demoUrl} onChange={(e) => setForm((f) => ({ ...f, demoUrl: e.target.value }))} className={inp} placeholder="https://..." /></Field>
-        <Field label="GitHub URL"><input value={form.githubUrl} onChange={(e) => setForm((f) => ({ ...f, githubUrl: e.target.value }))} className={inp} placeholder="https://github.com/..." /></Field>
-      </div>
-      <div className="flex gap-2 pt-1">
-        <button type="submit" disabled={saving} className="px-4 py-2 bg-[#1a3a5c] text-white text-sm font-semibold rounded-xl disabled:opacity-50 hover:bg-[#0f2340] transition-colors">
-          {saving ? "저장 중…" : "저장"}
-        </button>
-        <button type="button" onClick={() => setOpen(false)} className="px-4 py-2 border border-gray-200 text-sm text-gray-500 rounded-xl hover:bg-gray-50 transition-colors">취소</button>
-      </div>
-    </form>
+
+      {adding && (
+        <FormPanel title="새 프로젝트" onClose={() => setAdding(false)} onSubmit={add} saving={saving}>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>{label("제목 *")}<DInput value={form.title} onChange={f("title")} placeholder="프로젝트 이름" /></div>
+            <div>{label("상태")}<DSelect value={form.status} onChange={f("status")} options={[{ value: "ONGOING", label: "진행 중" }, { value: "COMPLETED", label: "완료" }]} /></div>
+          </div>
+          <div>{label("설명 *")}<DTextarea value={form.description} onChange={f("description")} placeholder="프로젝트 설명" /></div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>{label("팀원 (쉼표 구분)")}<DInput value={form.teamMembers} onChange={f("teamMembers")} placeholder="홍길동, 김철수" /></div>
+            <div>{label("태그 (쉼표 구분)")}<DInput value={form.tags} onChange={f("tags")} placeholder="AI, 데이터" /></div>
+            <div>{label("Demo URL")}<DInput value={form.demoUrl} onChange={f("demoUrl")} placeholder="https://..." /></div>
+            <div>{label("GitHub URL")}<DInput value={form.githubUrl} onChange={f("githubUrl")} placeholder="https://github.com/..." /></div>
+          </div>
+        </FormPanel>
+      )}
+
+      {items.length === 0 ? (
+        <p className="text-center py-12 text-sm" style={{ color: "rgba(255,255,255,0.25)" }}>등록된 프로젝트가 없습니다.</p>
+      ) : items.map((p) => (
+        <div key={p.id}>
+          {editingId === p.id ? (
+            <FormPanel title="프로젝트 수정" onClose={() => setEditingId(null)} onSubmit={save} saving={saving}>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>{label("제목 *")}<DInput value={editForm.title} onChange={ef("title")} /></div>
+                <div>{label("상태")}<DSelect value={editForm.status} onChange={ef("status")} options={[{ value: "ONGOING", label: "진행 중" }, { value: "COMPLETED", label: "완료" }]} /></div>
+              </div>
+              <div>{label("설명 *")}<DTextarea value={editForm.description} onChange={ef("description")} /></div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>{label("팀원")}<DInput value={editForm.teamMembers} onChange={ef("teamMembers")} /></div>
+                <div>{label("태그")}<DInput value={editForm.tags} onChange={ef("tags")} /></div>
+                <div>{label("Demo URL")}<DInput value={editForm.demoUrl} onChange={ef("demoUrl")} /></div>
+                <div>{label("GitHub URL")}<DInput value={editForm.githubUrl} onChange={ef("githubUrl")} /></div>
+              </div>
+            </FormPanel>
+          ) : (
+            <ItemRow
+              badge={<span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${PROJECT_STATUS[p.status] ?? ""}`}>{p.status === "ONGOING" ? "진행 중" : "완료"}</span>}
+              title={p.title}
+              sub={[p.teamMembers, p.tags].filter(Boolean).join(" · ")}
+              onEdit={() => {
+                setEditForm({ id: p.id, title: p.title, description: p.description, tags: p.tags ?? "", status: p.status, teamMembers: p.teamMembers ?? "", demoUrl: p.demoUrl ?? "", githubUrl: p.githubUrl ?? "" });
+                setEditingId(p.id); setAdding(false);
+              }}
+              onDelete={() => del(p.id)}
+            />
+          )}
+        </div>
+      ))}
+    </div>
   );
 }
 
-/* ─── Add Learning Form ─────────────────────────────────────── */
-function AddLearningForm({ onAdd }: { onAdd: (i: LearningItem) => void }) {
-  const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ title: "", description: "", category: "COURSE", instructor: "", tags: "" });
-  const [saving, setSaving] = useState(false);
-  const { toast } = useToast();
+/* ─── Learning Section ───────────────────────────────────────────── */
+function LearningSection({ items, setItems }: {
+  items: LearningItem[]; setItems: React.Dispatch<React.SetStateAction<LearningItem[]>>;
+}) {
+  const [adding, setAdding]       = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [saving, setSaving]       = useState(false);
+  const [msg, setMsg]             = useState("");
 
-  async function submit(e: React.FormEvent) {
+  const blank = { title: "", description: "", category: "COURSE", instructor: "", tags: "" };
+  const [form, setForm]       = useState(blank);
+  const [editForm, setEditForm] = useState<typeof blank & { id?: string }>(blank);
+  const f  = (k: keyof typeof blank) => (v: string) => setForm((p) => ({ ...p, [k]: v }));
+  const ef = (k: keyof typeof blank) => (v: string) => setEditForm((p) => ({ ...p, [k]: v }));
+  const catOptions = [{ value: "COURSE", label: "Course" }, { value: "WORKSHOP", label: "Workshop" }, { value: "SEMINAR", label: "Seminar" }];
+
+  async function add(e: React.FormEvent) {
     e.preventDefault();
     if (!form.title || !form.description) return;
     setSaving(true);
-    const res = await fetch("/api/learning", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
-    });
+    const res = await fetch("/api/learning", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
     setSaving(false);
-    if (res.ok) {
-      onAdd(await res.json());
-      setForm({ title: "", description: "", category: "COURSE", instructor: "", tags: "" });
-      setOpen(false);
-      toast("학습 콘텐츠가 추가되었습니다.", "success");
-    } else toast("추가에 실패했습니다.", "error");
+    if (res.ok) { setItems((p) => [await res.json(), ...p]); setForm(blank); setAdding(false); setMsg("추가되었습니다."); }
+    else setMsg("저장에 실패했습니다.");
+    setTimeout(() => setMsg(""), 3000);
   }
 
-  if (!open) return (
-    <button onClick={() => setOpen(true)}
-      className="flex items-center gap-2 px-4 py-2 bg-[#1a3a5c] hover:bg-[#0f2340] text-white text-sm font-semibold rounded-xl transition-colors">
-      <Plus size={14} />새 콘텐츠
-    </button>
-  );
+  async function save(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editForm.id) return;
+    setSaving(true);
+    const { id, ...data } = editForm;
+    const res = await fetch(`/api/learning/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
+    setSaving(false);
+    if (res.ok) { setItems((p) => p.map((x) => x.id === id ? { ...x, ...data } : x)); setEditingId(null); setMsg("수정되었습니다."); }
+    else setMsg("수정에 실패했습니다.");
+    setTimeout(() => setMsg(""), 3000);
+  }
+
+  async function del(id: string) {
+    if (!confirm("삭제하시겠습니까?")) return;
+    const res = await fetch(`/api/learning/${id}`, { method: "DELETE" });
+    if (res.ok) { setItems((p) => p.filter((x) => x.id !== id)); setMsg("삭제되었습니다."); }
+    setTimeout(() => setMsg(""), 3000);
+  }
 
   return (
-    <form onSubmit={submit} className="border border-[#1a3a5c]/20 rounded-2xl p-5 bg-[#1a3a5c]/3 space-y-3">
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <Field label="제목 *"><input value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} className={inp} placeholder="강좌명" /></Field>
-        <Field label="구분">
-          <select value={form.category} onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))} className={inp}>
-            <option value="COURSE">Course</option>
-            <option value="WORKSHOP">Workshop</option>
-            <option value="SEMINAR">Seminar</option>
-          </select>
-        </Field>
+    <div>
+      <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
+        <span className="text-sm font-semibold text-white">{items.length}개의 과정</span>
+        <div className="flex items-center gap-3">
+          {msg && <span className="text-xs" style={{ color: "#c9a227" }}>{msg}</span>}
+          <button onClick={() => { setAdding((v) => !v); setEditingId(null); }}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all"
+            style={{ background: adding ? "rgba(255,255,255,0.1)" : "#c9a227", color: adding ? "white" : "#060d18" }}>
+            {adding ? <ChevronUp size={13} /> : <Plus size={13} />}새 과정
+          </button>
+        </div>
       </div>
-      <Field label="설명 *"><textarea rows={3} value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} className={textarea} placeholder="강좌 설명" /></Field>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <Field label="강사"><input value={form.instructor} onChange={(e) => setForm((f) => ({ ...f, instructor: e.target.value }))} className={inp} placeholder="이름" /></Field>
-        <Field label="태그 (쉼표 구분)"><input value={form.tags} onChange={(e) => setForm((f) => ({ ...f, tags: e.target.value }))} className={inp} placeholder="AI, Design" /></Field>
-      </div>
-      <div className="flex gap-2 pt-1">
-        <button type="submit" disabled={saving} className="px-4 py-2 bg-[#1a3a5c] text-white text-sm font-semibold rounded-xl disabled:opacity-50 hover:bg-[#0f2340] transition-colors">
-          {saving ? "저장 중…" : "저장"}
-        </button>
-        <button type="button" onClick={() => setOpen(false)} className="px-4 py-2 border border-gray-200 text-sm text-gray-500 rounded-xl hover:bg-gray-50 transition-colors">취소</button>
-      </div>
-    </form>
+
+      {adding && (
+        <FormPanel title="새 학습 과정" onClose={() => setAdding(false)} onSubmit={add} saving={saving}>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>{label("제목 *")}<DInput value={form.title} onChange={f("title")} placeholder="과정명" /></div>
+            <div>{label("구분")}<DSelect value={form.category} onChange={f("category")} options={catOptions} /></div>
+          </div>
+          <div>{label("설명 *")}<DTextarea value={form.description} onChange={f("description")} placeholder="과정 설명" /></div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>{label("강사")}<DInput value={form.instructor} onChange={f("instructor")} placeholder="교수/강사 이름" /></div>
+            <div>{label("태그")}<DInput value={form.tags} onChange={f("tags")} placeholder="AI, Ethics" /></div>
+          </div>
+        </FormPanel>
+      )}
+
+      {items.length === 0 ? (
+        <p className="text-center py-12 text-sm" style={{ color: "rgba(255,255,255,0.25)" }}>등록된 과정이 없습니다.</p>
+      ) : items.map((item) => (
+        <div key={item.id}>
+          {editingId === item.id ? (
+            <FormPanel title="학습 과정 수정" onClose={() => setEditingId(null)} onSubmit={save} saving={saving}>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>{label("제목 *")}<DInput value={editForm.title} onChange={ef("title")} /></div>
+                <div>{label("구분")}<DSelect value={editForm.category} onChange={ef("category")} options={catOptions} /></div>
+              </div>
+              <div>{label("설명 *")}<DTextarea value={editForm.description} onChange={ef("description")} /></div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>{label("강사")}<DInput value={editForm.instructor} onChange={ef("instructor")} /></div>
+                <div>{label("태그")}<DInput value={editForm.tags} onChange={ef("tags")} /></div>
+              </div>
+            </FormPanel>
+          ) : (
+            <ItemRow
+              badge={<span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${LEARN_CAT[item.category] ?? ""}`}>{item.category}</span>}
+              title={item.title}
+              sub={[item.instructor, item.tags].filter(Boolean).join(" · ")}
+              onEdit={() => { setEditForm({ id: item.id, title: item.title, description: item.description, category: item.category, instructor: item.instructor ?? "", tags: item.tags ?? "" }); setEditingId(item.id); setAdding(false); }}
+              onDelete={() => del(item.id)}
+            />
+          )}
+        </div>
+      ))}
+    </div>
   );
 }
 
-/* ─── Add Activity Form ─────────────────────────────────────── */
-function AddActivityForm({ onAdd }: { onAdd: (i: ActivityItem) => void }) {
-  const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ title: "", description: "", type: "SESSION", date: "", tags: "" });
-  const [saving, setSaving] = useState(false);
-  const { toast } = useToast();
+/* ─── Activity Section ───────────────────────────────────────────── */
+function ActivitySection({ items, setItems }: {
+  items: ActivityItem[]; setItems: React.Dispatch<React.SetStateAction<ActivityItem[]>>;
+}) {
+  const [adding, setAdding]       = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [saving, setSaving]       = useState(false);
+  const [msg, setMsg]             = useState("");
 
-  async function submit(e: React.FormEvent) {
+  const blank = { title: "", description: "", type: "SESSION", date: "", tags: "" };
+  const [form, setForm]       = useState(blank);
+  const [editForm, setEditForm] = useState<typeof blank & { id?: string }>(blank);
+  const f  = (k: keyof typeof blank) => (v: string) => setForm((p) => ({ ...p, [k]: v }));
+  const ef = (k: keyof typeof blank) => (v: string) => setEditForm((p) => ({ ...p, [k]: v }));
+  const typeOptions = [{ value: "SESSION", label: "Active Learning" }, { value: "WORKSHOP", label: "Workshop" }, { value: "COLLABORATION", label: "Collaboration" }];
+
+  async function add(e: React.FormEvent) {
     e.preventDefault();
     if (!form.title || !form.description) return;
     setSaving(true);
-    const res = await fetch("/api/activities", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
-    });
+    const res = await fetch("/api/activities", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
     setSaving(false);
-    if (res.ok) {
-      onAdd(await res.json());
-      setForm({ title: "", description: "", type: "SESSION", date: "", tags: "" });
-      setOpen(false);
-      toast("활동이 추가되었습니다.", "success");
-    } else toast("추가에 실패했습니다.", "error");
+    if (res.ok) { setItems((p) => [await res.json(), ...p]); setForm(blank); setAdding(false); setMsg("추가되었습니다."); }
+    else setMsg("저장에 실패했습니다.");
+    setTimeout(() => setMsg(""), 3000);
   }
 
-  if (!open) return (
-    <button onClick={() => setOpen(true)}
-      className="flex items-center gap-2 px-4 py-2 bg-[#1a3a5c] hover:bg-[#0f2340] text-white text-sm font-semibold rounded-xl transition-colors">
-      <Plus size={14} />새 활동
-    </button>
-  );
+  async function save(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editForm.id) return;
+    setSaving(true);
+    const { id, ...data } = editForm;
+    const res = await fetch(`/api/activities/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
+    setSaving(false);
+    if (res.ok) { setItems((p) => p.map((x) => x.id === id ? { ...x, ...data } : x)); setEditingId(null); setMsg("수정되었습니다."); }
+    else setMsg("수정에 실패했습니다.");
+    setTimeout(() => setMsg(""), 3000);
+  }
+
+  async function del(id: string) {
+    if (!confirm("삭제하시겠습니까?")) return;
+    const res = await fetch(`/api/activities/${id}`, { method: "DELETE" });
+    if (res.ok) { setItems((p) => p.filter((x) => x.id !== id)); setMsg("삭제되었습니다."); }
+    setTimeout(() => setMsg(""), 3000);
+  }
 
   return (
-    <form onSubmit={submit} className="border border-[#1a3a5c]/20 rounded-2xl p-5 bg-[#1a3a5c]/3 space-y-3">
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <Field label="제목 *"><input value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} className={inp} placeholder="활동명" /></Field>
-        <Field label="유형">
-          <select value={form.type} onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))} className={inp}>
-            <option value="SESSION">Active Learning</option>
-            <option value="WORKSHOP">Workshop</option>
-            <option value="COLLABORATION">Collaboration</option>
-          </select>
-        </Field>
+    <div>
+      <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
+        <span className="text-sm font-semibold text-white">{items.length}개의 활동</span>
+        <div className="flex items-center gap-3">
+          {msg && <span className="text-xs" style={{ color: "#c9a227" }}>{msg}</span>}
+          <button onClick={() => { setAdding((v) => !v); setEditingId(null); }}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all"
+            style={{ background: adding ? "rgba(255,255,255,0.1)" : "#c9a227", color: adding ? "white" : "#060d18" }}>
+            {adding ? <ChevronUp size={13} /> : <Plus size={13} />}새 활동
+          </button>
+        </div>
       </div>
-      <Field label="설명 *"><textarea rows={3} value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} className={textarea} placeholder="활동 설명" /></Field>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <Field label="날짜"><input value={form.date} onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))} className={inp} placeholder="2026.06.01" /></Field>
-        <Field label="태그 (쉼표 구분)"><input value={form.tags} onChange={(e) => setForm((f) => ({ ...f, tags: e.target.value }))} className={inp} placeholder="팀프로젝트, 발표" /></Field>
-      </div>
-      <div className="flex gap-2 pt-1">
-        <button type="submit" disabled={saving} className="px-4 py-2 bg-[#1a3a5c] text-white text-sm font-semibold rounded-xl disabled:opacity-50 hover:bg-[#0f2340] transition-colors">
-          {saving ? "저장 중…" : "저장"}
-        </button>
-        <button type="button" onClick={() => setOpen(false)} className="px-4 py-2 border border-gray-200 text-sm text-gray-500 rounded-xl hover:bg-gray-50 transition-colors">취소</button>
-      </div>
-    </form>
+
+      {adding && (
+        <FormPanel title="새 활동" onClose={() => setAdding(false)} onSubmit={add} saving={saving}>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>{label("제목 *")}<DInput value={form.title} onChange={f("title")} placeholder="활동명" /></div>
+            <div>{label("유형")}<DSelect value={form.type} onChange={f("type")} options={typeOptions} /></div>
+          </div>
+          <div>{label("설명 *")}<DTextarea value={form.description} onChange={f("description")} placeholder="활동 설명" /></div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>{label("날짜 (YYYY-MM-DD)")}<DInput value={form.date} onChange={f("date")} placeholder="2026-06-01" /></div>
+            <div>{label("태그")}<DInput value={form.tags} onChange={f("tags")} placeholder="Seoul, 팀프로젝트" /></div>
+          </div>
+        </FormPanel>
+      )}
+
+      {items.length === 0 ? (
+        <p className="text-center py-12 text-sm" style={{ color: "rgba(255,255,255,0.25)" }}>등록된 활동이 없습니다.</p>
+      ) : items.map((item) => (
+        <div key={item.id}>
+          {editingId === item.id ? (
+            <FormPanel title="활동 수정" onClose={() => setEditingId(null)} onSubmit={save} saving={saving}>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>{label("제목 *")}<DInput value={editForm.title} onChange={ef("title")} /></div>
+                <div>{label("유형")}<DSelect value={editForm.type} onChange={ef("type")} options={typeOptions} /></div>
+              </div>
+              <div>{label("설명 *")}<DTextarea value={editForm.description} onChange={ef("description")} /></div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>{label("날짜")}<DInput value={editForm.date} onChange={ef("date")} /></div>
+                <div>{label("태그")}<DInput value={editForm.tags} onChange={ef("tags")} /></div>
+              </div>
+            </FormPanel>
+          ) : (
+            <ItemRow
+              badge={<span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${ACT_TYPE[item.type] ?? ""}`}>{ACT_LABEL[item.type] ?? item.type}</span>}
+              title={item.title}
+              sub={[item.date, item.tags].filter(Boolean).join(" · ")}
+              onEdit={() => { setEditForm({ id: item.id, title: item.title, description: item.description, type: item.type, date: item.date ?? "", tags: item.tags ?? "" }); setEditingId(item.id); setAdding(false); }}
+              onDelete={() => del(item.id)}
+            />
+          )}
+        </div>
+      ))}
+    </div>
   );
 }
 
-/* ─── Main Admin Page ───────────────────────────────────────── */
+/* ─── Main ───────────────────────────────────────────────────────── */
+const TABS: { key: Tab; label: string; icon: React.ElementType }[] = [
+  { key: "project",  label: "Project",  icon: FolderKanban },
+  { key: "learning", label: "Learning", icon: BookOpen },
+  { key: "activity", label: "Activity", icon: Zap },
+];
+
 export default function AdminPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
-  const { toast } = useToast();
-  const [tab, setTab] = useState<TabKey>("members");
-  const [memberFilter, setMemberFilter] = useState("PENDING");
+  const [tab, setTab] = useState<Tab>("project");
 
-  const [users, setUsers] = useState<User[]>([]);
-  const [posts, setPosts] = useState<Post[]>([]);
-  const [comments, setComments] = useState<Comment[]>([]);
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [learningItems, setLearningItems] = useState<LearningItem[]>([]);
-  const [activityItems, setActivityItems] = useState<ActivityItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [projects,  setProjects]  = useState<Project[]>([]);
+  const [learning,  setLearning]  = useState<LearningItem[]>([]);
+  const [activity,  setActivity]  = useState<ActivityItem[]>([]);
+  const [loading,   setLoading]   = useState(true);
 
   useEffect(() => {
-    if (status === "unauthenticated") { router.push("/login"); return; }
+    if (status === "unauthenticated") router.push("/login");
     if (status === "authenticated" && session.user.role !== "ADMIN") router.push("/");
   }, [status, session, router]);
 
-  const fetchAll = useCallback(async () => {
+  const load = useCallback(async () => {
     if (status !== "authenticated" || session?.user.role !== "ADMIN") return;
     setLoading(true);
-    const [u, p, c, pr, lc, ac] = await Promise.all([
-      fetch("/api/admin/users").then((r) => r.json()),
-      fetch("/api/admin/posts").then((r) => r.json()),
-      fetch("/api/admin/comments").then((r) => r.json()),
+    const [pr, lc, ac] = await Promise.all([
       fetch("/api/projects").then((r) => r.json()),
       fetch("/api/learning").then((r) => r.json()),
       fetch("/api/activities").then((r) => r.json()),
     ]);
-    setUsers(Array.isArray(u) ? u : []);
-    setPosts(Array.isArray(p) ? p : []);
-    setComments(Array.isArray(c) ? c : []);
     setProjects(Array.isArray(pr) ? pr : []);
-    setLearningItems(Array.isArray(lc) ? lc : []);
-    setActivityItems(Array.isArray(ac) ? ac : []);
+    setLearning(Array.isArray(lc) ? lc : []);
+    setActivity(Array.isArray(ac) ? ac : []);
     setLoading(false);
   }, [status, session]);
 
-  useEffect(() => { fetchAll(); }, [fetchAll]);
+  useEffect(() => { load(); }, [load]);
 
-  /* actions */
-  async function updateUserStatus(userId: string, newStatus: string) {
-    const res = await fetch("/api/admin/users", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId, status: newStatus }),
-    });
-    if (res.ok) {
-      setUsers((prev) => prev.map((u) => u.id === userId ? { ...u, status: newStatus } : u));
-      toast(newStatus === "APPROVED" ? "승인되었습니다." : "거절되었습니다.", newStatus === "APPROVED" ? "success" : "info");
-    }
+  if (status === "loading" || loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ background: "var(--bg)" }}>
+        <div className="w-8 h-8 rounded-full border-2 border-[#c9a227] border-t-transparent animate-spin" />
+      </div>
+    );
   }
-
-  async function togglePin(postId: string, isPinned: boolean) {
-    const res = await fetch(`/api/posts/${postId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ isPinned: !isPinned }),
-    });
-    if (res.ok) {
-      setPosts((prev) => prev.map((p) => p.id === postId ? { ...p, isPinned: !isPinned } : p));
-      toast(!isPinned ? "고정했습니다." : "고정 해제했습니다.", "info");
-    }
-  }
-
-  async function deletePost(postId: string) {
-    if (!confirm("게시글을 삭제하시겠습니까?")) return;
-    const res = await fetch(`/api/posts/${postId}`, { method: "DELETE" });
-    if (res.ok) { setPosts((p) => p.filter((x) => x.id !== postId)); toast("삭제되었습니다.", "info"); }
-  }
-
-  async function deleteComment(id: string) {
-    if (!confirm("댓글을 삭제하시겠습니까?")) return;
-    const res = await fetch(`/api/comments/${id}`, { method: "DELETE" });
-    if (res.ok) {
-      setComments((prev) => prev.map((c) => c.id === id ? { ...c, isDeleted: true } : c));
-      toast("삭제되었습니다.", "info");
-    }
-  }
-
-  async function deleteProject(id: string) {
-    if (!confirm("프로젝트를 삭제하시겠습니까?")) return;
-    const res = await fetch(`/api/projects/${id}`, { method: "DELETE" });
-    if (res.ok) { setProjects((p) => p.filter((x) => x.id !== id)); toast("삭제되었습니다.", "info"); }
-  }
-
-  async function deleteLearning(id: string) {
-    if (!confirm("삭제하시겠습니까?")) return;
-    const res = await fetch(`/api/learning/${id}`, { method: "DELETE" });
-    if (res.ok) { setLearningItems((p) => p.filter((x) => x.id !== id)); toast("삭제되었습니다.", "info"); }
-  }
-
-  async function deleteActivity(id: string) {
-    if (!confirm("삭제하시겠습니까?")) return;
-    const res = await fetch(`/api/activities/${id}`, { method: "DELETE" });
-    if (res.ok) { setActivityItems((p) => p.filter((x) => x.id !== id)); toast("삭제되었습니다.", "info"); }
-  }
-
-  const pendingCount = users.filter((u) => u.status === "PENDING").length;
-  const filteredUsers = users.filter((u) => memberFilter === "ALL" ? true : u.status === memberFilter);
-
-  const STATUS_BADGE: Record<string, string> = {
-    ONGOING: "bg-emerald-100 text-emerald-700",
-    COMPLETED: "bg-blue-100 text-blue-700",
-  };
-  const CAT_BADGE: Record<string, string> = {
-    COURSE: "bg-blue-100 text-blue-700",
-    WORKSHOP: "bg-purple-100 text-purple-700",
-    SEMINAR: "bg-amber-100 text-amber-700",
-  };
-  const TYPE_BADGE: Record<string, string> = {
-    SESSION: "bg-amber-100 text-amber-700",
-    WORKSHOP: "bg-orange-100 text-orange-700",
-    COLLABORATION: "bg-rose-100 text-rose-700",
-  };
 
   return (
-    <div className="min-h-screen bg-[#f0f4f8] pb-24 md:pb-0">
-      <Navbar />
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900 mb-1">관리자 패널</h1>
-          <p className="text-gray-500 text-sm">콘텐츠·회원·게시글을 관리합니다</p>
-        </div>
-
-        {/* Stats */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-          {[
-            { label: "승인 회원", value: users.filter((u) => u.status === "APPROVED").length, icon: Users, bg: "bg-blue-50", color: "text-[#1a3a5c]" },
-            { label: "승인 대기", value: pendingCount, icon: Clock, bg: "bg-amber-50", color: "text-amber-600", alert: pendingCount > 0 },
-            { label: "프로젝트", value: projects.length, icon: FolderKanban, bg: "bg-emerald-50", color: "text-emerald-600" },
-            { label: "Learning", value: learningItems.length, icon: BookOpen, bg: "bg-purple-50", color: "text-purple-600" },
-          ].map(({ label, value, icon: Icon, bg, color, alert }) => (
-            <div key={label} className={`${bg} rounded-2xl p-4 relative`}>
-              {alert && <span className="absolute top-3 right-3 w-2 h-2 bg-amber-500 rounded-full animate-pulse" />}
-              <Icon size={18} className={`${color} mb-2`} />
-              <div className="text-2xl font-bold text-gray-900">{loading ? "…" : value}</div>
-              <div className="text-xs text-gray-500 mt-0.5">{label}</div>
-            </div>
-          ))}
-        </div>
-
-        {/* Tabs */}
-        <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
-          <div className="flex border-b border-gray-100 overflow-x-auto">
-            {TABS.map(({ key, label, icon: Icon }) => (
-              <button key={key} onClick={() => setTab(key)}
-                className={cn(
-                  "flex items-center gap-1.5 px-4 py-3.5 text-sm font-medium whitespace-nowrap border-b-2 -mb-px transition-colors",
-                  tab === key ? "text-[#1a3a5c] border-[#1a3a5c]" : "text-gray-400 border-transparent hover:text-gray-600"
-                )}>
-                <Icon size={14} />
-                {label}
-                {key === "members" && pendingCount > 0 && (
-                  <span className="bg-amber-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center font-bold leading-none">
-                    {pendingCount}
-                  </span>
-                )}
-              </button>
-            ))}
+    <div className="min-h-screen pb-20" style={{ background: "var(--bg)" }}>
+      {/* Admin Nav */}
+      <header className="fixed top-0 inset-x-0 z-50 h-14 flex items-center px-6 gap-4"
+        style={{ background: "rgba(6,13,24,0.9)", backdropFilter: "blur(20px)", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+        <Link href="/" className="flex items-center gap-2 mr-4">
+          <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-[#1a3a5c] to-[#c9a227] flex items-center justify-center">
+            <span className="text-white font-black text-xs">泰</span>
           </div>
+          <span className="text-white font-black text-sm hidden sm:block">관리자 패널</span>
+        </Link>
 
-          {/* ── Members ── */}
-          {tab === "members" && (
-            <div>
-              <div className="flex gap-2 p-4 border-b border-gray-50 flex-wrap">
-                {[
-                  { value: "PENDING", label: `대기 (${pendingCount})` },
-                  { value: "APPROVED", label: "승인됨" },
-                  { value: "REJECTED", label: "거절됨" },
-                  { value: "ALL", label: "전체" },
-                ].map(({ value, label }) => (
-                  <button key={value} onClick={() => setMemberFilter(value)}
-                    className={cn("px-3 py-1.5 rounded-xl text-sm font-medium transition-colors",
-                      memberFilter === value ? "bg-[#1a3a5c] text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200")}>
-                    {label}
-                  </button>
-                ))}
-              </div>
-              {loading ? <div className="p-8 text-center text-gray-400">불러오는 중…</div>
-                : filteredUsers.length === 0 ? <div className="p-8 text-center text-gray-400 text-sm">해당 목록이 없습니다.</div>
-                : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="bg-gray-50 text-xs text-gray-400 uppercase">
-                          <th className="text-left px-5 py-3 font-medium">이름</th>
-                          <th className="text-left px-5 py-3 font-medium">이메일</th>
-                          <th className="text-left px-5 py-3 font-medium">구분</th>
-                          <th className="text-left px-5 py-3 font-medium">기수</th>
-                          <th className="text-left px-5 py-3 font-medium">신청일</th>
-                          <th className="text-left px-5 py-3 font-medium">상태</th>
-                          <th className="text-left px-5 py-3 font-medium">액션</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-50">
-                        {filteredUsers.map((u) => (
-                          <tr key={u.id} className="hover:bg-gray-50 transition-colors">
-                            <td className="px-5 py-3.5 font-semibold text-gray-900">
-                              {u.name}{u.nameEn && <span className="text-xs text-gray-400 ml-1">({u.nameEn})</span>}
-                            </td>
-                            <td className="px-5 py-3.5 text-gray-500 text-xs">{u.email}</td>
-                            <td className="px-5 py-3.5"><RoleBadge role={u.role} /></td>
-                            <td className="px-5 py-3.5 text-gray-400">{u.cohort ? `${u.cohort}기` : "-"}</td>
-                            <td className="px-5 py-3.5 text-gray-400 text-xs">{formatDate(u.createdAt)}</td>
-                            <td className="px-5 py-3.5">
-                              <span className={cn("inline-flex px-2.5 py-1 rounded-full text-xs font-medium",
-                                u.status === "APPROVED" ? "bg-green-100 text-green-700"
-                                  : u.status === "REJECTED" ? "bg-red-100 text-red-600"
-                                  : "bg-amber-100 text-amber-700")}>
-                                {u.status === "APPROVED" ? "승인됨" : u.status === "REJECTED" ? "거절됨" : "대기"}
-                              </span>
-                            </td>
-                            <td className="px-5 py-3.5">
-                              {u.status === "PENDING" && (
-                                <div className="flex gap-1.5">
-                                  <button onClick={() => updateUserStatus(u.id, "APPROVED")}
-                                    className="flex items-center gap-1 px-2.5 py-1.5 bg-green-500 hover:bg-green-600 text-white text-xs font-semibold rounded-lg transition-colors">
-                                    <Check size={11} />승인
-                                  </button>
-                                  <button onClick={() => updateUserStatus(u.id, "REJECTED")}
-                                    className="flex items-center gap-1 px-2.5 py-1.5 bg-gray-200 hover:bg-red-100 text-gray-600 hover:text-red-600 text-xs font-semibold rounded-lg transition-colors">
-                                    <X size={11} />거절
-                                  </button>
-                                </div>
-                              )}
-                              {u.status === "APPROVED" && (
-                                <button onClick={() => updateUserStatus(u.id, "REJECTED")}
-                                  className="px-2.5 py-1.5 border border-red-200 text-red-500 hover:bg-red-50 text-xs rounded-lg transition-colors">취소</button>
-                              )}
-                              {u.status === "REJECTED" && (
-                                <button onClick={() => updateUserStatus(u.id, "APPROVED")}
-                                  className="px-2.5 py-1.5 border border-green-200 text-green-600 hover:bg-green-50 text-xs rounded-lg transition-colors">재승인</button>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-            </div>
-          )}
+        {TABS.map(({ key, label: lbl, icon: Icon }) => (
+          <button key={key} onClick={() => setTab(key)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
+            style={{
+              background: tab === key ? "rgba(201,162,39,0.15)" : "transparent",
+              color: tab === key ? "#c9a227" : "rgba(255,255,255,0.4)",
+              border: tab === key ? "1px solid rgba(201,162,39,0.25)" : "1px solid transparent",
+            }}>
+            <Icon size={13} />{lbl}
+          </button>
+        ))}
 
-          {/* ── Projects ── */}
-          {tab === "projects" && (
-            <div className="p-5 space-y-4">
-              <AddProjectForm onAdd={(p) => setProjects((prev) => [p, ...prev])} />
-              {loading ? <div className="text-center text-gray-400 py-8">불러오는 중…</div>
-                : projects.length === 0 ? <div className="text-center text-gray-400 py-8 text-sm">등록된 프로젝트가 없습니다.</div>
-                : (
-                  <div className="space-y-2">
-                    {projects.map((p) => (
-                      <div key={p.id} className="flex items-center gap-3 p-4 border border-gray-100 rounded-2xl hover:bg-gray-50 group transition-colors">
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium shrink-0 ${STATUS_BADGE[p.status] ?? "bg-gray-100 text-gray-600"}`}>
-                          {p.status === "ONGOING" ? "진행 중" : "완료"}
-                        </span>
-                        <div className="flex-1 min-w-0">
-                          <div className="font-semibold text-gray-900 text-sm truncate">{p.title}</div>
-                          <div className="text-xs text-gray-400 truncate">{p.description}</div>
-                          {p.teamMembers && <div className="text-xs text-gray-400 mt-0.5">팀: {p.teamMembers}</div>}
-                        </div>
-                        <div className="text-xs text-gray-400 shrink-0">댓글 {p._count.comments}</div>
-                        <button onClick={() => deleteProject(p.id)}
-                          className="shrink-0 opacity-0 group-hover:opacity-100 flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-xl bg-red-50 text-red-500 hover:bg-red-100 transition-all">
-                          <Trash2 size={12} />삭제
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-            </div>
-          )}
+        <div className="ml-auto flex items-center gap-2">
+          <Link href="/" target="_blank"
+            className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors"
+            style={{ color: "rgba(255,255,255,0.4)", background: "rgba(255,255,255,0.05)" }}>
+            <ExternalLink size={11} />사이트
+          </Link>
+          <button onClick={() => signOut({ callbackUrl: "/login" })}
+            className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors"
+            style={{ color: "rgba(255,255,255,0.4)", background: "rgba(255,255,255,0.05)" }}>
+            <LogOut size={11} />로그아웃
+          </button>
+        </div>
+      </header>
 
-          {/* ── Learning ── */}
-          {tab === "learning" && (
-            <div className="p-5 space-y-4">
-              <AddLearningForm onAdd={(i) => setLearningItems((prev) => [i, ...prev])} />
-              {loading ? <div className="text-center text-gray-400 py-8">불러오는 중…</div>
-                : learningItems.length === 0 ? <div className="text-center text-gray-400 py-8 text-sm">등록된 콘텐츠가 없습니다.</div>
-                : (
-                  <div className="space-y-2">
-                    {learningItems.map((item) => (
-                      <div key={item.id} className="flex items-center gap-3 p-4 border border-gray-100 rounded-2xl hover:bg-gray-50 group transition-colors">
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium shrink-0 ${CAT_BADGE[item.category] ?? "bg-gray-100 text-gray-600"}`}>
-                          {item.category}
-                        </span>
-                        <div className="flex-1 min-w-0">
-                          <div className="font-semibold text-gray-900 text-sm truncate">{item.title}</div>
-                          {item.instructor && <div className="text-xs text-gray-400">강사: {item.instructor}</div>}
-                          <div className="text-xs text-gray-400 truncate">{item.description}</div>
-                        </div>
-                        <button onClick={() => deleteLearning(item.id)}
-                          className="shrink-0 opacity-0 group-hover:opacity-100 flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-xl bg-red-50 text-red-500 hover:bg-red-100 transition-all">
-                          <Trash2 size={12} />삭제
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-            </div>
-          )}
-
-          {/* ── Activity ── */}
-          {tab === "activity" && (
-            <div className="p-5 space-y-4">
-              <AddActivityForm onAdd={(i) => setActivityItems((prev) => [i, ...prev])} />
-              {loading ? <div className="text-center text-gray-400 py-8">불러오는 중…</div>
-                : activityItems.length === 0 ? <div className="text-center text-gray-400 py-8 text-sm">등록된 활동이 없습니다.</div>
-                : (
-                  <div className="space-y-2">
-                    {activityItems.map((item) => (
-                      <div key={item.id} className="flex items-center gap-3 p-4 border border-gray-100 rounded-2xl hover:bg-gray-50 group transition-colors">
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium shrink-0 ${TYPE_BADGE[item.type] ?? "bg-gray-100 text-gray-600"}`}>
-                          {item.type === "SESSION" ? "Active Learning" : item.type}
-                        </span>
-                        <div className="flex-1 min-w-0">
-                          <div className="font-semibold text-gray-900 text-sm truncate">{item.title}</div>
-                          {item.date && <div className="text-xs text-gray-400">{item.date}</div>}
-                          <div className="text-xs text-gray-400 truncate">{item.description}</div>
-                        </div>
-                        <button onClick={() => deleteActivity(item.id)}
-                          className="shrink-0 opacity-0 group-hover:opacity-100 flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-xl bg-red-50 text-red-500 hover:bg-red-100 transition-all">
-                          <Trash2 size={12} />삭제
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-            </div>
-          )}
-
-          {/* ── Posts ── */}
-          {tab === "posts" && (
-            <div>
-              {loading ? <div className="p-8 text-center text-gray-400">불러오는 중…</div>
-                : posts.length === 0 ? <div className="p-8 text-center text-gray-400 text-sm">게시글이 없습니다.</div>
-                : (
-                  <div className="divide-y divide-gray-50">
-                    {posts.map((p) => {
-                      const cat = CATEGORIES[p.category as CategoryKey] ?? CATEGORIES.GENERAL;
-                      return (
-                        <div key={p.id} className="flex items-center gap-4 px-5 py-4 hover:bg-gray-50 group transition-colors">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-1 flex-wrap">
-                              {p.isPinned && <Pin size={12} className="text-[#1a3a5c]" />}
-                              <span className={`text-xs px-2 py-0.5 rounded-full ${cat.color}`}>{cat.label}</span>
-                              <span className="text-xs text-gray-400">{p.author.name}</span>
-                            </div>
-                            <div className="text-sm font-semibold text-gray-900 truncate">{p.title}</div>
-                            <div className="text-xs text-gray-400 mt-0.5">댓글 {p._count.comments} · 좋아요 {p._count.likes} · {formatDate(p.createdAt)}</div>
-                          </div>
-                          <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-                            <button onClick={() => togglePin(p.id, p.isPinned)}
-                              className={cn("flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-xl transition-colors",
-                                p.isPinned ? "bg-[#1a3a5c]/10 text-[#1a3a5c]" : "bg-gray-100 text-gray-500 hover:bg-gray-200")}>
-                              <Pin size={11} />{p.isPinned ? "고정 해제" : "고정"}
-                            </button>
-                            <button onClick={() => deletePost(p.id)}
-                              className="flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-xl bg-red-50 text-red-500 hover:bg-red-100 transition-colors">
-                              <Trash2 size={11} />삭제
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-            </div>
-          )}
-
-          {/* ── Comments ── */}
-          {tab === "comments" && (
-            <div>
-              {loading ? <div className="p-8 text-center text-gray-400">불러오는 중…</div>
-                : comments.length === 0 ? <div className="p-8 text-center text-gray-400 text-sm">댓글이 없습니다.</div>
-                : (
-                  <div className="divide-y divide-gray-50">
-                    {comments.map((c) => (
-                      <div key={c.id} className="flex items-start gap-4 px-5 py-4 hover:bg-gray-50 group transition-colors">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1 flex-wrap">
-                            <RoleBadge role={c.author.role} />
-                            <span className="text-xs font-medium text-gray-700">{c.author.name}</span>
-                            <span className="text-xs text-[#1a3a5c] truncate max-w-[180px]">{c.post.title}</span>
-                            <span className="text-xs text-gray-400">{formatDate(c.createdAt)}</span>
-                          </div>
-                          <p className={cn("text-sm", c.isDeleted ? "text-gray-300 italic" : "text-gray-700")}>
-                            {c.isDeleted ? "삭제된 댓글입니다." : c.content}
-                          </p>
-                        </div>
-                        {!c.isDeleted && (
-                          <button onClick={() => deleteComment(c.id)}
-                            className="shrink-0 opacity-0 group-hover:opacity-100 flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-xl bg-red-50 text-red-500 hover:bg-red-100 transition-all">
-                            <Trash2 size={11} />삭제
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-            </div>
-          )}
-
-          {/* ── Stats ── */}
-          {tab === "stats" && (
-            <div className="p-6 grid sm:grid-cols-2 gap-6">
-              {[
-                {
-                  label: "역할별 회원",
-                  data: ["STUDENT","ALUMNI","FACULTY","SPONSOR"].map((r) => ({
-                    name: { STUDENT:"재학생", ALUMNI:"동문", FACULTY:"교직원", SPONSOR:"후원자" }[r] ?? r,
-                    value: users.filter((u) => u.role === r && u.status === "APPROVED").length,
-                  })).filter((d) => d.value > 0),
-                },
-                {
-                  label: "프로젝트 상태",
-                  data: [
-                    { name: "진행 중", value: projects.filter((p) => p.status === "ONGOING").length },
-                    { name: "완료", value: projects.filter((p) => p.status === "COMPLETED").length },
-                  ].filter((d) => d.value > 0),
-                },
-              ].map(({ label, data }) => (
-                <div key={label} className="bg-gray-50 rounded-2xl p-5">
-                  <h3 className="font-semibold text-gray-900 mb-4 text-sm">{label}</h3>
-                  <div className="space-y-3">
-                    {data.length === 0
-                      ? <p className="text-gray-400 text-sm">데이터 없음</p>
-                      : data.map(({ name, value }) => {
-                        const max = Math.max(...data.map((d) => d.value), 1);
-                        return (
-                          <div key={name} className="flex items-center gap-3">
-                            <span className="text-xs text-gray-500 w-20 shrink-0">{name}</span>
-                            <div className="flex-1 bg-gray-200 rounded-full h-2 overflow-hidden">
-                              <div className="h-2 rounded-full bg-[#1a3a5c] transition-all" style={{ width: `${(value / max) * 100}%` }} />
-                            </div>
-                            <span className="text-xs font-bold text-gray-700 w-4 text-right">{value}</span>
-                          </div>
-                        );
-                      })}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+      {/* Content */}
+      <main className="max-w-4xl mx-auto px-4 pt-20">
+        <div className="card rounded-3xl overflow-hidden">
+          {tab === "project"  && <ProjectSection  items={projects} setItems={setProjects} />}
+          {tab === "learning" && <LearningSection items={learning} setItems={setLearning} />}
+          {tab === "activity" && <ActivitySection items={activity} setItems={setActivity} />}
         </div>
       </main>
     </div>
