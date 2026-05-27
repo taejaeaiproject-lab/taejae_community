@@ -15,8 +15,8 @@ export async function GET(req: NextRequest) {
   const posts = await prisma.post.findMany({
     where,
     include: {
-      author: { select: { id: true, name: true, role: true, cohort: true, profileImage: true } },
-      _count: { select: { comments: true } },
+      author: { select: { id: true, name: true, role: true, cohort: true } },
+      _count: { select: { comments: true, likes: true } },
     },
     orderBy: [{ isPinned: "desc" }, { createdAt: "desc" }],
   });

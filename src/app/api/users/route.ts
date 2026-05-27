@@ -36,7 +36,6 @@ export async function GET(req: NextRequest) {
       currentCountry: true,
       bio: true,
       linkedinUrl: true,
-      profileImage: true,
       company: true,
       jobTitle: true,
       graduationYear: true,

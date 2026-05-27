@@ -21,7 +21,6 @@ model User {
   bio            String?
   linkedinUrl    String?
   instagramUrl   String?
-  profileImage   String?
   graduationYear Int?
   company        String?
   jobTitle       String?
@@ -31,6 +30,8 @@ model User {
 
   posts          Post[]
   comments       Comment[]
+  likes          Like[]
+  events         Event[]
   approvedBy     User?     @relation("Approvals", fields: [approvedById], references: [id])
   approvedById   String?
   approvals      User[]    @relation("Approvals")
@@ -47,6 +48,7 @@ model Post {
   authorId  String
   author    User      @relation(fields: [authorId], references: [id])
   comments  Comment[]
+  likes     Like[]
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
@@ -54,14 +56,50 @@ model Post {
 }
 
 model Comment {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   content   String
+  isDeleted Boolean   @default(false)
   postId    String
-  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  post      Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
   authorId  String
-  author    User     @relation(fields: [authorId], references: [id])
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  author    User      @relation(fields: [authorId], references: [id])
+  parentId  String?
+  parent    Comment?  @relation("Replies", fields: [parentId], references: [id])
+  replies   Comment[] @relation("Replies")
+  likes     Like[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 
   @@map("comments")
+}
+
+model Like {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  postId    String?
+  post      Post?    @relation(fields: [postId], references: [id], onDelete: Cascade)
+  commentId String?
+  comment   Comment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, postId])
+  @@unique([userId, commentId])
+  @@map("likes")
+}
+
+model Event {
+  id          String    @id @default(cuid())
+  title       String
+  description String
+  location    String?
+  isOnline    Boolean   @default(false)
+  startDate   DateTime
+  endDate     DateTime?
+  authorId    String
+  author      User      @relation(fields: [authorId], references: [id])
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@map("events")
 }

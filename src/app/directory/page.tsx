@@ -18,7 +18,6 @@ type Member = {
   currentCountry: string | null;
   bio: string | null;
   linkedinUrl: string | null;
-  profileImage: string | null;
   company: string | null;
   jobTitle: string | null;
 };

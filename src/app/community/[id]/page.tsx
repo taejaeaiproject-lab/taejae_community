@@ -6,10 +6,26 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import RoleBadge from "@/components/RoleBadge";
+import LikeButton from "@/components/LikeButton";
 import { CATEGORIES } from "@/lib/utils";
-import { ArrowLeft, Trash2, Send } from "lucide-react";
+import { ArrowLeft, Trash2, Send, CornerDownRight, ChevronDown } from "lucide-react";
+import { useToast } from "@/components/ui/Toast";
 
 type CategoryKey = keyof typeof CATEGORIES;
+
+type Author = { id: string; name: string; role: string; cohort: number | null };
+
+type CommentData = {
+  id: string;
+  content: string;
+  isDeleted: boolean;
+  createdAt: string;
+  author: Author;
+  parentId: string | null;
+  replies: CommentData[];
+  liked: boolean;
+  _count: { likes: number };
+};
 
 type Post = {
   id: string;
@@ -18,21 +34,155 @@ type Post = {
   category: string;
   isPinned: boolean;
   createdAt: string;
-  author: { id: string; name: string; role: string; cohort: number | null; profileImage: string | null };
-  comments: Comment[];
+  author: Author;
+  comments: CommentData[];
+  liked: boolean;
+  likeCount: number;
 };
 
-type Comment = {
-  id: string;
-  content: string;
-  createdAt: string;
-  author: { id: string; name: string; role: string; cohort: number | null };
-};
+function formatDate(s: string) {
+  return new Date(s).toLocaleDateString("ko-KR", {
+    year: "numeric", month: "long", day: "numeric",
+    hour: "2-digit", minute: "2-digit",
+  });
+}
+
+function CommentItem({
+  comment, sessionId, sessionRole, postId,
+  onDelete, onReply, depth = 0,
+}: {
+  comment: CommentData;
+  sessionId: string;
+  sessionRole: string;
+  postId: string;
+  onDelete: (id: string) => void;
+  onReply: (parentId: string, content: string) => Promise<void>;
+  depth?: number;
+}) {
+  const [replyOpen, setReplyOpen] = useState(false);
+  const [replyText, setReplyText] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [showReplies, setShowReplies] = useState(true);
+  const [liked, setLiked] = useState(comment.liked);
+  const [likeCount, setLikeCount] = useState(comment._count.likes);
+
+  async function submitReply() {
+    if (!replyText.trim() || submitting) return;
+    setSubmitting(true);
+    await onReply(comment.id, replyText);
+    setReplyText("");
+    setReplyOpen(false);
+    setSubmitting(false);
+  }
+
+  return (
+    <div className={depth > 0 ? "ml-8 border-l-2 border-gray-100 pl-4" : ""}>
+      <div className="py-3">
+        <div className="flex items-start gap-3">
+          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#1a3a5c] to-[#c9a227] flex items-center justify-center text-white text-xs font-bold shrink-0 mt-0.5">
+            {comment.isDeleted ? "·" : comment.author.name.charAt(0)}
+          </div>
+          <div className="flex-1 min-w-0">
+            {!comment.isDeleted ? (
+              <>
+                <div className="flex items-center gap-2 mb-1 flex-wrap">
+                  <span className="text-sm font-semibold text-gray-900">{comment.author.name}</span>
+                  <RoleBadge role={comment.author.role} />
+                  {comment.author.cohort && <span className="text-xs text-gray-400">{comment.author.cohort}기</span>}
+                  <span className="text-xs text-gray-300">{formatDate(comment.createdAt)}</span>
+                </div>
+                <p className="text-sm text-gray-700 leading-relaxed mb-2">{comment.content}</p>
+                <div className="flex items-center gap-2">
+                  <LikeButton
+                    size="sm"
+                    liked={liked}
+                    count={likeCount}
+                    onLike={async () => {
+                      const res = await fetch(`/api/comments/${comment.id}/like`, { method: "POST" });
+                      const data = await res.json();
+                      setLiked(data.liked);
+                      setLikeCount(data.count);
+                      return data;
+                    }}
+                  />
+                  {depth === 0 && (
+                    <button
+                      onClick={() => setReplyOpen((v) => !v)}
+                      className="flex items-center gap-1 text-xs text-gray-400 hover:text-[#1a3a5c] transition-colors px-2 py-1 rounded-lg hover:bg-gray-50"
+                    >
+                      <CornerDownRight size={12} />
+                      답글
+                    </button>
+                  )}
+                  {(sessionId === comment.author.id || sessionRole === "ADMIN") && (
+                    <button
+                      onClick={() => onDelete(comment.id)}
+                      className="text-xs text-gray-300 hover:text-red-400 transition-colors px-2 py-1 rounded-lg hover:bg-red-50"
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  )}
+                </div>
+              </>
+            ) : (
+              <p className="text-sm text-gray-300 italic py-1">삭제된 댓글입니다.</p>
+            )}
+          </div>
+        </div>
+
+        {replyOpen && (
+          <div className="ml-11 mt-2 flex gap-2 animate-fade-in">
+            <textarea
+              value={replyText}
+              onChange={(e) => setReplyText(e.target.value)}
+              rows={2}
+              placeholder="답글을 입력하세요..."
+              className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-[#1a3a5c]/30"
+              onKeyDown={(e) => { if (e.key === "Enter" && e.metaKey) submitReply(); }}
+            />
+            <button
+              onClick={submitReply}
+              disabled={submitting || !replyText.trim()}
+              className="px-3 bg-[#1a3a5c] text-white rounded-xl disabled:opacity-40 hover:bg-[#0f2340] transition-colors"
+            >
+              <Send size={14} />
+            </button>
+          </div>
+        )}
+
+        {comment.replies.length > 0 && depth === 0 && (
+          <div className="ml-11 mt-1">
+            <button
+              onClick={() => setShowReplies((v) => !v)}
+              className="flex items-center gap-1 text-xs text-[#1a3a5c] hover:underline mb-2"
+            >
+              <ChevronDown size={12} className={showReplies ? "rotate-180" : ""} />
+              답글 {comment.replies.length}개
+            </button>
+            {showReplies && comment.replies.map((reply) => (
+              <CommentItem
+                key={reply.id}
+                comment={reply}
+                sessionId={sessionId}
+                sessionRole={sessionRole}
+                postId={postId}
+                onDelete={onDelete}
+                onReply={onReply}
+                depth={1}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export default function PostDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const { data: session, status } = useSession();
   const router = useRouter();
+  const { toast } = useToast();
   const [post, setPost] = useState<Post | null>(null);
   const [loading, setLoading] = useState(true);
   const [comment, setComment] = useState("");
@@ -51,138 +201,173 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
 
   async function handleComment(e: React.FormEvent) {
     e.preventDefault();
-    if (!comment.trim()) return;
+    if (!comment.trim() || submitting) return;
     setSubmitting(true);
-
     const res = await fetch(`/api/posts/${id}/comments`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ content: comment }),
     });
-
     const data = await res.json();
     setSubmitting(false);
-
     if (res.ok) {
-      setPost((p) => p ? { ...p, comments: [...p.comments, data] } : p);
+      setPost((p) => p ? { ...p, comments: [...p.comments, { ...data, replies: [] }] } : p);
       setComment("");
     }
   }
 
-  async function handleDelete() {
-    if (!confirm("게시글을 삭제하시겠습니까?")) return;
-    const res = await fetch(`/api/posts/${id}`, { method: "DELETE" });
-    if (res.ok) router.push("/community");
+  async function handleReply(parentId: string, content: string) {
+    const res = await fetch(`/api/posts/${id}/comments`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content, parentId }),
+    });
+    const data = await res.json();
+    if (res.ok) {
+      setPost((p) => {
+        if (!p) return p;
+        return {
+          ...p,
+          comments: p.comments.map((c) =>
+            c.id === parentId ? { ...c, replies: [...(c.replies ?? []), { ...data, replies: [] }] } : c
+          ),
+        };
+      });
+    }
   }
 
-  function formatDate(s: string) {
-    return new Date(s).toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit" });
+  async function handleDeleteComment(commentId: string) {
+    const res = await fetch(`/api/comments/${commentId}`, { method: "DELETE" });
+    if (res.ok) {
+      setPost((p) => {
+        if (!p) return p;
+        return {
+          ...p,
+          comments: p.comments.map((c) =>
+            c.id === commentId
+              ? { ...c, isDeleted: true, content: "삭제된 댓글입니다." }
+              : { ...c, replies: c.replies.map((r) => r.id === commentId ? { ...r, isDeleted: true, content: "삭제된 댓글입니다." } : r) }
+          ),
+        };
+      });
+      toast("댓글이 삭제되었습니다.", "info");
+    }
+  }
+
+  async function handleDeletePost() {
+    if (!confirm("게시글을 삭제하시겠습니까?")) return;
+    const res = await fetch(`/api/posts/${id}`, { method: "DELETE" });
+    if (res.ok) { toast("게시글이 삭제되었습니다.", "info"); router.push("/community"); }
   }
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-[#f0f4f8] pb-20 md:pb-0">
         <Navbar />
         <main className="max-w-3xl mx-auto px-4 py-8">
-          <div className="bg-white rounded-2xl p-8 animate-pulse">
-            <div className="h-6 bg-gray-200 rounded w-3/4 mb-4" />
-            <div className="h-4 bg-gray-100 rounded w-1/2 mb-8" />
-            <div className="space-y-3">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="h-4 bg-gray-100 rounded" />
-              ))}
-            </div>
-          </div>
+          <div className="bg-white rounded-3xl p-8 animate-pulse h-64" />
         </main>
       </div>
     );
   }
-
   if (!post) return null;
 
   const cat = CATEGORIES[post.category as CategoryKey] ?? CATEGORIES.GENERAL;
+  const totalComments = post.comments.reduce((acc, c) => acc + 1 + (c.replies?.length ?? 0), 0);
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-[#f0f4f8] pb-20 md:pb-0">
       <Navbar />
-      <main className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <Link href="/community" className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-[#1a3a5c] mb-6">
-          <ArrowLeft size={15} />
-          커뮤니티로 돌아가기
+      <main className="max-w-3xl mx-auto px-4 sm:px-6 py-8">
+        <Link href="/community" className="inline-flex items-center gap-1.5 text-sm text-gray-400 hover:text-[#1a3a5c] mb-5 transition-colors">
+          <ArrowLeft size={15} />돌아가기
         </Link>
 
         {/* Post */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 md:p-8 mb-6">
-          <div className="flex items-start justify-between mb-4">
-            <div>
-              <div className="flex items-center gap-2 mb-2 flex-wrap">
-                <span className={`text-xs px-2 py-0.5 rounded-full ${cat.color}`}>{cat.label}</span>
+        <div className="bg-white rounded-3xl shadow-sm border border-gray-100 mb-4 overflow-hidden">
+          <div className="p-6 md:p-8">
+            <div className="flex items-start justify-between mb-4 gap-4">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-3 flex-wrap">
+                  <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${cat.color}`}>{cat.label}</span>
+                  {post.isPinned && <span className="text-xs bg-red-50 text-red-500 px-2.5 py-1 rounded-full font-medium">📌 공지</span>}
+                </div>
+                <h1 className="text-xl md:text-2xl font-bold text-gray-900 leading-snug">{post.title}</h1>
               </div>
-              <h1 className="text-xl font-bold text-gray-900">{post.title}</h1>
+              {(session?.user.id === post.author.id || session?.user.role === "ADMIN") && (
+                <button onClick={handleDeletePost} className="p-2 rounded-xl text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors shrink-0">
+                  <Trash2 size={16} />
+                </button>
+              )}
             </div>
-            {(session?.user.id === post.author.id || session?.user.role === "ADMIN") && (
-              <button onClick={handleDelete} className="text-gray-400 hover:text-red-500 transition-colors p-1">
-                <Trash2 size={16} />
-              </button>
-            )}
-          </div>
 
-          <div className="flex items-center gap-3 pb-6 border-b border-gray-100">
-            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#1a3a5c] to-[#c9a227] flex items-center justify-center text-white font-bold text-sm">
-              {post.author.name.charAt(0)}
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-medium">{post.author.name}</span>
-                <RoleBadge role={post.author.role} />
-                {post.author.cohort && <span className="text-xs text-gray-400">{post.author.cohort}기</span>}
+            <div className="flex items-center gap-3 pb-6 border-b border-gray-100">
+              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#1a3a5c] to-[#c9a227] flex items-center justify-center text-white font-bold text-sm shrink-0">
+                {post.author.name.charAt(0)}
               </div>
-              <div className="text-xs text-gray-400">{formatDate(post.createdAt)}</div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-semibold text-gray-900 text-sm">{post.author.name}</span>
+                  <RoleBadge role={post.author.role} />
+                  {post.author.cohort && <span className="text-xs text-gray-400">{post.author.cohort}기</span>}
+                </div>
+                <div className="text-xs text-gray-400 mt-0.5">{formatDate(post.createdAt)}</div>
+              </div>
             </div>
-          </div>
 
-          <div className="py-6 text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
-            {post.content}
+            <div className="py-6 text-gray-700 leading-relaxed whitespace-pre-wrap text-[15px]">
+              {post.content}
+            </div>
+
+            <div className="flex items-center gap-3 pt-4 border-t border-gray-50">
+              <LikeButton
+                liked={post.liked}
+                count={post.likeCount}
+                onLike={async () => {
+                  const res = await fetch(`/api/posts/${id}/like`, { method: "POST" });
+                  return res.json();
+                }}
+              />
+              <span className="text-sm text-gray-400">댓글 {totalComments}</span>
+            </div>
           </div>
         </div>
 
         {/* Comments */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 md:p-8">
-          <h2 className="font-bold text-gray-900 mb-5">댓글 {post.comments.length}</h2>
+        <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="px-6 md:px-8 pt-6 pb-4 border-b border-gray-50">
+            <h2 className="font-bold text-gray-900">댓글 {totalComments}</h2>
+          </div>
 
           {post.comments.length > 0 && (
-            <div className="space-y-5 mb-6">
+            <div className="px-6 md:px-8 divide-y divide-gray-50">
               {post.comments.map((c) => (
-                <div key={c.id} className="flex gap-3">
-                  <div className="w-8 h-8 rounded-full bg-[#1a3a5c] flex items-center justify-center text-white text-xs font-bold shrink-0">
-                    {c.author.name.charAt(0)}
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-sm font-medium">{c.author.name}</span>
-                      <RoleBadge role={c.author.role} />
-                      {c.author.cohort && <span className="text-xs text-gray-400">{c.author.cohort}기</span>}
-                      <span className="text-xs text-gray-300">{formatDate(c.createdAt)}</span>
-                    </div>
-                    <p className="text-sm text-gray-700 leading-relaxed">{c.content}</p>
-                  </div>
-                </div>
+                <CommentItem
+                  key={c.id}
+                  comment={c}
+                  sessionId={session?.user.id ?? ""}
+                  sessionRole={session?.user.role ?? ""}
+                  postId={id}
+                  onDelete={handleDeleteComment}
+                  onReply={handleReply}
+                />
               ))}
             </div>
           )}
 
-          <form onSubmit={handleComment} className="flex gap-3">
+          <form onSubmit={handleComment} className="px-6 md:px-8 py-5 border-t border-gray-50 flex gap-3">
             <textarea
               value={comment}
               onChange={(e) => setComment(e.target.value)}
               rows={2}
-              placeholder="댓글을 입력하세요..."
-              className="flex-1 px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3a5c] resize-none"
+              placeholder="댓글을 입력하세요... (⌘+Enter로 등록)"
+              className="flex-1 px-4 py-3 border border-gray-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3a5c]/30 resize-none bg-gray-50 focus:bg-white transition-colors"
+              onKeyDown={(e) => { if (e.key === "Enter" && e.metaKey) handleComment(e); }}
             />
             <button
               type="submit"
               disabled={submitting || !comment.trim()}
-              className="px-4 py-3 bg-[#1a3a5c] hover:bg-[#0f2340] text-white rounded-xl transition-colors disabled:opacity-50 shrink-0"
+              className="px-4 bg-[#1a3a5c] hover:bg-[#0f2340] text-white rounded-2xl transition-colors disabled:opacity-40 shrink-0 active:scale-95"
             >
               <Send size={16} />
             </button>

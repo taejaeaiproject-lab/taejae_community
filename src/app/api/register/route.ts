@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
+import { sendRegistrationEmail, sendNewApplicantNotification } from "@/lib/resend";
 
 export async function POST(req: NextRequest) {
   try {
@@ -17,8 +18,7 @@ export async function POST(req: NextRequest) {
     }
 
     const hashed = await bcrypt.hash(password, 12);
-
-    await prisma.user.create({
+    const user = await prisma.user.create({
       data: {
         email,
         password: hashed,
@@ -30,6 +30,18 @@ export async function POST(req: NextRequest) {
         status: "PENDING",
       },
     });
+
+    const admins = await prisma.user.findMany({
+      where: { role: "ADMIN", status: "APPROVED" },
+      select: { email: true },
+    });
+
+    await Promise.allSettled([
+      sendRegistrationEmail(user.email, user.name),
+      ...admins.map((a) =>
+        sendNewApplicantNotification(a.email, user.name, user.email, role)
+      ),
+    ]);
 
     return NextResponse.json({ message: "가입 신청이 완료되었습니다. 관리자 승인 후 로그인 가능합니다." });
   } catch {

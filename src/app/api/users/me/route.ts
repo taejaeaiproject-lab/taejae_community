@@ -11,7 +11,7 @@ export async function GET() {
     select: {
       id: true, name: true, nameEn: true, email: true, role: true,
       cohort: true, major: true, currentCity: true, currentCountry: true,
-      bio: true, linkedinUrl: true, instagramUrl: true, profileImage: true,
+      bio: true, linkedinUrl: true, instagramUrl: true,
       company: true, jobTitle: true, graduationYear: true, isPublic: true,
     },
   });
