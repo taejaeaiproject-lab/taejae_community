@@ -1,5 +1,5 @@
 import PublicNav from "@/components/PublicNav";
-import { Globe, BookOpen, Zap, FolderKanban, Linkedin, Mail } from "lucide-react";
+import { Globe, BookOpen, Zap, FolderKanban, Link2, Mail } from "lucide-react";
 import Image from "next/image";
 
 const CAMPUSES = [
@@ -285,7 +285,7 @@ export default function AboutPage() {
                   {exec.linkedin && (
                     <div className="w-7 h-7 rounded-lg flex items-center justify-center cursor-pointer hover:bg-blue-500/20 transition-colors"
                       style={{ background: "rgba(255,255,255,0.05)" }}>
-                      <Linkedin size={12} className="text-blue-400" />
+                      <Link2 size={12} className="text-blue-400" />
                     </div>
                   )}
                 </div>
